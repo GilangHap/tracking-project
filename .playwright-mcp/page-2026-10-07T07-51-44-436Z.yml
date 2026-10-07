@@ -1,0 +1,17 @@
+- generic [active] [ref=f2e1]:
+  - main [ref=f2e3]:
+    - paragraph [ref=f2e4]: PROJECT_TRACKER
+    - heading "Login Admin" [level=1] [ref=f2e5]
+    - paragraph [ref=f2e6]: Kelola project, QR Code, dan riwayat session.
+    - form "Form login admin" [ref=f2e7]:
+      - generic [ref=f2e8]:
+        - text: Email
+        - textbox "Email" [ref=f2e9]:
+          - /placeholder: nama@perusahaan…
+      - generic [ref=f2e10]:
+        - text: Password
+        - textbox "Password" [ref=f2e11]:
+          - /placeholder: ••••••••
+      - button "Masuk" [ref=f2e12] [cursor=pointer]
+  - button "Open Next.js Dev Tools" [ref=f2e18] [cursor=pointer]
+  - alert [ref=f2e22]

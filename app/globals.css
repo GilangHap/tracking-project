@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+/* Bahasa visual diadaptasi dari mastumbas.id:
+   jendela retro + neo-brutalism: border ink tebal, shadow offset solid,
+   tombol kuning butter, label mono uppercase, harga pink. */
+@theme {
+  --color-ink: #1b1b3a;
+  --color-inksoft: #47464d;
+  --color-inkfaint: #66646e;
+  --color-butter: #ffe45e;
+  --color-butterdim: #e0c643;
+  --color-sky: #8ed1fc;
+  --color-bubblegum: #ff8fcf;
+  --color-bubblegumink: #c2185b;
+  --color-mint: #bcead5;
+  --color-lavender: #d6c7ff;
+  --color-peach: #ffbe98;
+  --color-canvas: #eef1fa;
+  --color-frame: #e8eaf3;
+  --color-paper: #ffffff;
+  --color-paperdim: #f2f3f7;
+  --color-danger: #ba1a1a;
+  --color-dangersoft: #ffdad6;
+  --color-success: #0f7a5a;
+
+  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-brand: var(--font-brand), ui-rounded, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+
+  --shadow-brutal-sm: 3px 3px 0 0 var(--color-ink);
+  --shadow-brutal: 4px 4px 0 0 var(--color-ink);
+  --shadow-brutal-lg: 6px 6px 0 0 var(--color-ink);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Target sentuh nyaman + tanpa jeda double-tap zoom di tombol. */
+button,
+a {
+  touch-action: manipulation;
+}
+
+/* Grid + glow khas background canvas. */
+.bg-grid {
+  background-image:
+    radial-gradient(
+      circle at 12% 8%,
+      rgb(142 209 252 / 0.34),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 88% 82%,
+      rgb(255 143 207 / 0.26),
+      transparent 34%
+    ),
+    linear-gradient(to right, rgb(27 27 58 / 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(27 27 58 / 0.055) 1px, transparent 1px);
+  background-size:
+    auto,
+    auto,
+    28px 28px,
+    28px 28px;
+}
+
+/* Tombol brutal: tidak ada transisi, tenggelam saat ditekan. */
+.press {
+  transition: none;
+}
+.press:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--color-ink);
+}
+
+/* Link dengan highlight butter saat hover. */
+.mark-link {
+  background-image: linear-gradient(var(--color-butter), var(--color-butter));
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  border-radius: 2px;
+  margin-inline: -2px;
+  padding-inline: 2px;
+  transition: background-size 0.16s ease-out;
+}
+@media (hover: hover) {
+  .mark-link:hover {
+    background-size: 100% 100%;
+  }
+}
+
+/* Ticker berjalan ala marquee. */
+@keyframes ticker-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-ticker {
+  animation: ticker-x 28s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,7 @@
+- generic [active] [ref=f1e1]:
+  - main [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - heading "QR tidak valid" [level=1] [ref=f1e5]
+      - paragraph [ref=f1e6]: QR Code tidak valid atau project tidak ditemukan. Minta QR baru ke admin.
+  - button "Open Next.js Dev Tools" [ref=f1e12] [cursor=pointer]
+  - alert [ref=f1e16]
