@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { fmtTimeWIB, fmtDuration } from "@/lib/format";
 import type { ClockResult, ScanInfo } from "@/lib/types";
 import { WinControls } from "@/components/ui";
+import { Loader } from "@/components/loader";
 
 type Phase = "ready" | "confirm" | "working" | "done" | "failed";
 
@@ -23,22 +24,19 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(4);
 
-  // Sukses → kembali otomatis ke halaman scanner.
+  // Sukses → hitung mundur, lalu kembali otomatis ke halaman scanner.
   useEffect(() => {
     if (phase !== "done") return;
     setCountdown(4);
     const tick = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          clearInterval(tick);
-          router.push("/scan");
-          return 0;
-        }
-        return c - 1;
-      });
+      setCountdown((c) => (c <= 1 ? 0 : c - 1));
     }, 1000);
     return () => clearInterval(tick);
-  }, [phase, router]);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === "done" && countdown === 0) router.push("/scan");
+  }, [phase, countdown, router]);
 
   const action = result?.action ?? info.next_action;
   const isIn = action === "IN";
@@ -149,9 +147,9 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
         )}
 
         {phase === "working" && (
-          <p className="mt-4 animate-pulse py-5 text-center font-mono text-sm font-bold tracking-widest uppercase">
-            Menyimpan…
-          </p>
+          <div className="mt-4 flex justify-center py-5">
+            <Loader label="Menyimpan…" />
+          </div>
         )}
 
         {phase === "done" && result && (

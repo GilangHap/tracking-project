@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Loader } from "@/components/loader";
 import { WinControls } from "@/components/ui";
 
 export default function LoginPage() {
@@ -84,9 +85,9 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="press lift mt-6 min-h-12 w-full cursor-pointer rounded border-2 border-ink bg-butter px-5 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            className="press lift mt-6 flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded border-2 border-ink bg-butter px-5 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           >
-            {loading ? "Memeriksa…" : "→ Masuk"}
+            {loading ? <Loader compact label="Memeriksa" /> : "→ Masuk"}
           </button>
         </form>
       </main>

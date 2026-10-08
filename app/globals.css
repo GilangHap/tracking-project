@@ -135,6 +135,29 @@ a {
   animation: ticker-x 28s linear infinite;
 }
 
+/* Loader tiga kotak: lompat bergantian berurutan. */
+@keyframes loader-hop {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-8px);
+  }
+}
+.loader-box {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--color-ink);
+  animation: loader-hop 0.9s ease-in-out infinite;
+}
+.loader-box-sm {
+  width: 9px;
+  height: 9px;
+  border-width: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Window } from "@/components/ui";
+import { Loader } from "@/components/loader";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -54,8 +55,9 @@ export function ScannerClient() {
     stop: () => Promise<void>;
     clear: () => void;
   } | null>(null);
-  const startingRef = useRef(false);
-  const [cam, setCam] = useState<CamState>("idle");
+  const bootingRef = useRef(false);
+  const autoTriedRef = useRef(false);
+  const [cam, setCam] = useState<CamState>("starting");
   const [cams, setCams] = useState<CamDevice[]>([]);
   const [camId, setCamId] = useState<string>("");
   const [manual, setManual] = useState("");
@@ -78,40 +80,83 @@ export function ScannerClient() {
     };
   }, [stop]);
 
-  async function startWith(deviceId: string) {
-    if (startingRef.current) return;
-    startingRef.current = true;
-    setCam("starting");
-    try {
-      // Dynamic import agar SSR/prerender tidak menyentuh API browser.
-      const { Html5Qrcode } = await import("html5-qrcode");
-      const scanner = new Html5Qrcode("qr-viewport");
-      scannerRef.current = scanner;
-      await scanner.start(
-        { deviceId: { exact: deviceId } },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        async (decoded) => {
-          const token = extractToken(decoded);
-          if (!token) return;
-          await stop();
-          setCam("idle");
-          router.push(`/scan/${token}`);
-        },
-        () => {
-          // frame tanpa QR — abaikan diam-diam
-        },
-      );
-      setCamId(deviceId);
-      setCam("scanning");
-    } catch (e) {
-      await stop();
-      setCam(messageFor(e));
-    } finally {
-      startingRef.current = false;
-    }
-  }
+  const startWith = useCallback(
+    async (deviceId: string): Promise<boolean> => {
+      try {
+        // Dynamic import agar SSR/prerender tidak menyentuh API browser.
+        // Wadah #qr-viewport SUDAH tampil saat fungsi ini dipanggil
+        // (dipastikan oleh alur starting → render → effect).
+        const { Html5Qrcode } = await import("html5-qrcode");
+        const host = document.getElementById("qr-viewport");
+        if (!host) {
+          setCam("error");
+          return false;
+        }
+        const scanner = new Html5Qrcode("qr-viewport");
+        scannerRef.current = scanner;
+        await scanner.start(
+          // Tanpa qrbox: tanpa shading gelap, video tampil penuh.
+          // Bingkai bidik digambar sendiri (CSS) sebagai panduan.
+          { deviceId: { exact: deviceId } },
+          { fps: 10 },
+          async (decoded) => {
+            const token = extractToken(decoded);
+            if (!token) return;
+            await stop();
+            setCam("idle");
+            router.push(`/scan/${token}`);
+          },
+          () => {
+            // frame tanpa QR — abaikan diam-diam
+          },
+        );
+        setCamId(deviceId);
+        setCam("scanning");
+        return true;
+      } catch (e) {
+        await stop();
+        setCam(messageFor(e));
+        return false;
+      }
+    },
+    [router, stop],
+  );
 
-  async function start() {
+  // Boot dijalankan SETELAH wadah video tampil (cam === "starting").
+  useEffect(() => {
+    if (cam !== "starting" || bootingRef.current) return;
+    bootingRef.current = true;
+    (async () => {
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        const found = await Html5Qrcode.getCameras();
+        if (!found || found.length === 0) {
+          setCam("none");
+          return;
+        }
+        const list = found.map((c, i) => ({
+          id: c.id,
+          label: c.label || `Kamera ${i + 1}`,
+        }));
+        setCams(list);
+        const first = pickPreferred(list);
+        const ordered = [
+          first,
+          ...list.filter((c) => c.id !== first.id),
+        ];
+        for (const c of ordered) {
+          if (await startWith(c.id)) return;
+        }
+        setCam("error");
+      } catch (e) {
+        setCam(messageFor(e));
+      } finally {
+        bootingRef.current = false;
+      }
+    })();
+  }, [cam, startWith]);
+
+  const requestStart = useCallback(() => {
     // Kamera browser wajib konteks aman (HTTPS / localhost).
     if (typeof window !== "undefined" && !window.isSecureContext) {
       setCam("insecure");
@@ -121,30 +166,16 @@ export function ScannerClient() {
       setCam("none");
       return;
     }
+    // Tampilkan dulu wadah video, boot jalan via effect setelah paint.
     setCam("starting");
-    try {
-      const { Html5Qrcode } = await import("html5-qrcode");
-      const found = await Html5Qrcode.getCameras();
-      if (!found || found.length === 0) {
-        setCam("none");
-        return;
-      }
-      const list = found.map((c, i) => ({
-        id: c.id,
-        label: c.label || `Kamera ${i + 1}`,
-      }));
-      setCams(list);
-      // Coba satu per satu sampai ada yang jalan (belakang dulu).
-      const ordered = [pickPreferred(list), ...list.filter((c) => c !== pickPreferred(list))];
-      for (const c of ordered) {
-        await startWith(c.id);
-        if (scannerRef.current) return;
-      }
-      setCam("error");
-    } catch (e) {
-      setCam(messageFor(e));
-    }
-  }
+  }, []);
+
+  // Auto-start sekali saat halaman dibuka; tombol hanya fallback.
+  useEffect(() => {
+    if (autoTriedRef.current) return;
+    autoTriedRef.current = true;
+    requestStart();
+  }, [requestStart]);
 
   async function switchCamera(id: string) {
     await stop();
@@ -163,23 +194,37 @@ export function ScannerClient() {
     router.push(`/scan/${token}`);
   }
 
+  const viewportVisible = cam === "starting" || cam === "scanning";
+
   return (
     <Window title="Scan_QR.Exe" bar="bg-butter">
+      {/* Wadah video selalu di DOM; terlihat saat starting/scanning
+          agar video bisa play + render frame. */}
+      <div
+        className={
+          viewportVisible
+            ? "relative overflow-hidden rounded border-2 border-ink"
+            : "hidden"
+        }
+      >
+        <div
+          id="qr-viewport"
+          className="w-full bg-ink [&_video]:block [&_video]:w-full"
+        />
+        {/* Bingkai bidik */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+        >
+          <span className="absolute top-4 left-4 h-8 w-8 border-t-4 border-l-4 border-butter" />
+          <span className="absolute top-4 right-4 h-8 w-8 border-t-4 border-r-4 border-butter" />
+          <span className="absolute bottom-4 left-4 h-8 w-8 border-b-4 border-l-4 border-butter" />
+          <span className="absolute right-4 bottom-4 h-8 w-8 border-r-4 border-b-4 border-butter" />
+        </div>
+      </div>
+
       {cam === "scanning" ? (
         <div>
-          <div className="relative overflow-hidden rounded border-2 border-ink">
-            <div id="qr-viewport" className="w-full [&_video]:w-full" />
-            {/* Bingkai bidik */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0"
-            >
-              <span className="absolute top-4 left-4 h-8 w-8 border-t-4 border-l-4 border-butter" />
-              <span className="absolute top-4 right-4 h-8 w-8 border-t-4 border-r-4 border-butter" />
-              <span className="absolute bottom-4 left-4 h-8 w-8 border-b-4 border-l-4 border-butter" />
-              <span className="absolute right-4 bottom-4 h-8 w-8 border-r-4 border-b-4 border-butter" />
-            </div>
-          </div>
           <p className="mt-3 text-center font-mono text-xs tracking-widest text-inksoft uppercase">
             Arahkan kamera ke QR project…
           </p>
@@ -199,30 +244,45 @@ export function ScannerClient() {
               </select>
             </label>
           )}
-          <button
-            type="button"
-            onClick={async () => {
-              await stop();
-              setCam("idle");
-            }}
-            className="press mt-3 min-h-11 w-full cursor-pointer rounded border-2 border-ink bg-paper px-4 py-2 font-mono text-sm font-bold uppercase shadow-brutal-sm hover:bg-lavender focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-          >
-            Matikan Kamera
-          </button>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                await stop();
+                setCam("idle");
+              }}
+              className="press min-h-11 w-full cursor-pointer rounded border-2 border-ink bg-paper px-4 py-2 font-mono text-sm font-bold uppercase shadow-brutal-sm hover:bg-lavender focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            >
+              Matikan Kamera
+            </button>
+            <a
+              href="/"
+              className="press grid min-h-11 w-full cursor-pointer place-items-center rounded border-2 border-ink bg-paper px-4 py-2 font-mono text-sm font-bold uppercase shadow-brutal-sm hover:bg-lavender focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            >
+              ← Beranda
+            </a>
+          </div>
         </div>
       ) : (
         <div className="text-center">
-          <p className="font-mono text-xs tracking-widest text-inksoft uppercase">
-            Pindai QR project pakai kamera
-          </p>
-          <button
-            type="button"
-            onClick={start}
-            disabled={cam === "starting"}
-            className="press lift mt-3 min-h-14 w-full cursor-pointer rounded border-2 border-ink bg-butter px-5 py-3 font-mono text-lg font-bold uppercase shadow-brutal-sm disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-          >
-            {cam === "starting" ? "Menyalakan…" : "◎ Nyalakan Kamera"}
-          </button>
+          {cam === "starting" ? (
+            <div className="flex justify-center py-2">
+              <Loader label="Menyalakan kamera…" />
+            </div>
+          ) : (
+            <>
+              <p className="font-mono text-xs tracking-widest text-inksoft uppercase">
+                Pindai QR project pakai kamera
+              </p>
+              <button
+                type="button"
+                onClick={requestStart}
+                className="press lift mt-3 min-h-14 w-full cursor-pointer rounded border-2 border-ink bg-butter px-5 py-3 font-mono text-lg font-bold uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              >
+                ◎ Nyalakan Kamera
+              </button>
+            </>
+          )}
           {cam === "denied" && (
             <p
               role="alert"
