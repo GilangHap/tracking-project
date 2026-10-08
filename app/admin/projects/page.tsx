@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { escapeLike } from "@/lib/search";
 import { EmptyRow, SectionBar, StatusBadge } from "@/components/ui";
 
 // Halaman dinamis per request (data sesi login) → navigasi boleh blocking.
@@ -38,7 +39,7 @@ export default async function ProjectsPage({
     .order("created_at", { ascending: false });
   if (!showArchived) query = query.eq("is_archived", false);
   if (processFilter) query = query.eq("process", processFilter);
-  if (q) query = query.ilike("name", `%${q}%`);
+  if (q) query = query.ilike("name", `%${escapeLike(q)}%`);
 
   const { data: projects } = await query;
   const list = projects ?? [];

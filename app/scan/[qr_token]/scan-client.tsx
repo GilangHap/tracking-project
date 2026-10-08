@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { fmtTimeWIB, fmtDuration } from "@/lib/format";
+import { fmtDateWIB, fmtTimeWIB, fmtDuration } from "@/lib/format";
 import type { ClockResult, ScanInfo } from "@/lib/types";
 import { WinControls } from "@/components/ui";
 import { Loader } from "@/components/loader";
@@ -23,11 +23,10 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
   const [result, setResult] = useState<ClockResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(4);
-
-  // Sukses → hitung mundur, lalu kembali otomatis ke halaman scanner.
+  // Sukses → hitung mundur dari 4, lalu kembali otomatis ke scanner.
+  // (countdown cukup inisialisasi sekali: tiap mount hanya 1x done.)
   useEffect(() => {
     if (phase !== "done") return;
-    setCountdown(4);
     const tick = setInterval(() => {
       setCountdown((c) => (c <= 1 ? 0 : c - 1));
     }, 1000);
@@ -41,6 +40,23 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
   const action = result?.action ?? info.next_action;
   const isIn = action === "IN";
   const bar = isIn ? "bg-butter" : "bg-peach";
+
+  // Segarkan data saat tab kembali aktif (tombol back, tab lama
+  // dibuka lagi, dsb) agar tidak terjebak di layar basi.
+  useEffect(() => {
+    const refresh = () => router.refresh();
+    const onVis = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pageshow", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pageshow", refresh);
+    };
+  }, [router]);
 
   async function submit() {
     setPhase("working");
@@ -109,6 +125,16 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
               </span>
             )}
           </div>
+        )}
+
+        {phase === "ready" && info.next_action === "IN" && info.last_clock_in && (
+          <p className="mt-2 font-mono text-xs text-inksoft">
+            TERAKHIR: {fmtDateWIB(info.last_clock_in)}{" "}
+            {fmtTimeWIB(info.last_clock_in)}
+            {info.last_clock_out
+              ? ` → ${fmtTimeWIB(info.last_clock_out)}`
+              : " (belum clock out)"}
+          </p>
         )}
 
         {phase === "ready" && (

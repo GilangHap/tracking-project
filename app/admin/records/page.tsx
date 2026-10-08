@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { escapeLike } from "@/lib/search";
 import { fmtDuration, fmtDateWIB, fmtTimeWIB } from "@/lib/format";
 import { EmptyRow, SectionBar } from "@/components/ui";
 
@@ -77,7 +79,7 @@ export default async function RecordsPage({
     })
     .eq("projects.is_archived", false)
     .order("clock_in", { ascending: false });
-  if (f.q) query = query.ilike("projects.name", `%${f.q}%`);
+  if (f.q) query = query.ilike("projects.name", `%${escapeLike(f.q)}%`);
   if (f.process) query = query.eq("projects.process", f.process);
   if (f.from) query = query.gte("clock_in", `${f.from}T00:00:00+07:00`);
   if (f.to) query = query.lte("clock_in", `${f.to}T23:59:59.999+07:00`);
@@ -87,6 +89,8 @@ export default async function RecordsPage({
   const records = (data ?? []) as unknown as RecordRow[];
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  // Halaman di luar jangkauan (mis. data terhapus) → lempar ke halaman akhir.
+  if (page > totalPages) redirect(pageHref(f, totalPages));
   const safePage = Math.min(page, totalPages);
 
   // Nomor halaman compact: 1 … sekitar … akhir

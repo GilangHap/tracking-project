@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SectionBar, Window, WinControls } from "@/components/ui";
+import { SectionBar, WinControls } from "@/components/ui";
 
 const TICKER =
   "SCAN QR · CLOCK IN · CLOCK OUT · DURASI OTOMATIS · MACHINING · ASSEMBLY · TRIAL · TANPA LOGIN · ".repeat(

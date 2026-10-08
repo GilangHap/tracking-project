@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Window } from "@/components/ui";
 import { Loader } from "@/components/loader";
@@ -255,12 +256,12 @@ export function ScannerClient() {
             >
               Matikan Kamera
             </button>
-            <a
+            <Link
               href="/"
               className="press grid min-h-11 w-full cursor-pointer place-items-center rounded border-2 border-ink bg-paper px-4 py-2 font-mono text-sm font-bold uppercase shadow-brutal-sm hover:bg-lavender focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             >
               ← Beranda
-            </a>
+            </Link>
           </div>
         </div>
       ) : (

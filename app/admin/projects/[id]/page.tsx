@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
@@ -19,6 +19,7 @@ import {
   Window,
   inputCls,
 } from "@/components/ui";
+import { Pager } from "@/components/pager";
 import {
   updateProject,
   setArchived,
@@ -58,11 +59,18 @@ function sessionSecs(s: WorkSession): number | null {
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ spage?: string; apage?: string }>;
 }) {
   const { id } = await params;
   if (!UUID_RE.test(id)) notFound();
+  const sq = (await searchParams) ?? {};
+  const spage = Math.max(1, parseInt(sq.spage ?? "1", 10) || 1);
+  const apage = Math.max(1, parseInt(sq.apage ?? "1", 10) || 1);
+  const PER_SESSION = 15;
+  const PER_AUDIT = 10;
 
   // Wajib request-time: Supabase JS memanggil Date.now() yang dilarang prerender.
   await connection();
@@ -75,31 +83,68 @@ export default async function ProjectDetailPage({
   if (!project) notFound();
   const p = project as Project;
 
-  const { data: sessions } = await supabase
+  const { data: sessions, count: sessionTotal } = await supabase
     .from("work_sessions")
-    .select("id, project_id, clock_in, clock_out, duration")
+    .select("id, project_id, clock_in, clock_out, duration", {
+      count: "exact",
+    })
     .eq("project_id", id)
-    .order("clock_in", { ascending: true });
+    .order("clock_in", { ascending: false })
+    .range((spage - 1) * PER_SESSION, spage * PER_SESSION - 1);
 
-  const { data: corrections } = await supabase
+  const { data: corrections, count: auditTotal } = await supabase
     .from("session_corrections")
     .select(
       "id, action, old_clock_in, new_clock_in, old_clock_out, new_clock_out, reason, created_at",
+      { count: "exact" },
     )
     .eq("project_id", id)
     .order("created_at", { ascending: false })
-    .limit(20);
+    .range((apage - 1) * PER_AUDIT, apage * PER_AUDIT - 1);
+
+  const sessionPages = Math.max(1, Math.ceil((sessionTotal ?? 0) / PER_SESSION));
+  const auditPages = Math.max(1, Math.ceil((auditTotal ?? 0) / PER_AUDIT));
+  if (spage > sessionPages || apage > auditPages) {
+    const sp = new URLSearchParams();
+    if (Math.min(spage, sessionPages) > 1)
+      sp.set("spage", String(Math.min(spage, sessionPages)));
+    if (Math.min(apage, auditPages) > 1)
+      sp.set("apage", String(Math.min(apage, auditPages)));
+    const q = sp.toString();
+    redirect(`/admin/projects/${id}${q ? `?${q}` : ""}`);
+  }
+
+  // Agregat global (tidak ikut pagination) untuk kartu + status.
+  const { data: statusRow } = await supabase
+    .from("v_project_status")
+    .select("status, session_count")
+    .eq("project_id", id)
+    .maybeSingle();
+  const { data: totalRow } = await supabase
+    .from("v_project_totals")
+    .select("total_secs")
+    .eq("project_id", id)
+    .maybeSingle();
+  const { data: activeRow } = await supabase
+    .from("work_sessions")
+    .select("clock_in")
+    .eq("project_id", id)
+    .is("clock_out", null)
+    .maybeSingle();
 
   const list = (sessions ?? []) as WorkSession[];
-  const totalSecs = list.reduce((a, s) => a + (sessionSecs(s) ?? 0), 0);
-  const active = list.find((s) => !s.clock_out) ?? null;
+  const sessionCount =
+    (statusRow as { session_count?: number } | null)?.session_count ??
+    (sessionTotal ?? 0);
+  const totalSecs = Number(
+    (totalRow as { total_secs?: number } | null)?.total_secs ?? 0,
+  );
+  const activeClockIn = (
+    activeRow as { clock_in?: string } | null
+  )?.clock_in;
   const status = p.is_archived
     ? "Archived"
-    : list.length === 0
-      ? "Not Started"
-      : active
-        ? "Ongoing"
-        : "Completed";
+    : ((statusRow as { status?: string } | null)?.status ?? "Not Started");
 
   const siteUrl = (
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
@@ -145,7 +190,7 @@ export default async function ProjectDetailPage({
             Record
           </p>
           <p className="px-2 py-2 font-display text-xl font-bold tabular-nums md:text-2xl">
-            {list.length}×
+            {sessionCount}×
           </p>
         </div>
         <div className="border-2 border-ink bg-paper shadow-brutal-sm">
@@ -153,7 +198,7 @@ export default async function ProjectDetailPage({
             Aktif
           </p>
           <p className="px-2 py-2 font-display text-xl font-bold tabular-nums md:text-2xl">
-            {active ? fmtTimeWIB(active.clock_in) : "—"}
+            {activeClockIn ? fmtTimeWIB(activeClockIn) : "—"}
           </p>
         </div>
       </div>
@@ -169,9 +214,19 @@ export default async function ProjectDetailPage({
               height={224}
               className="mx-auto h-56 w-56 border-2 border-ink bg-paper shadow-brutal-sm"
             />
-            <p className="mt-3 font-mono text-xs break-all text-inksoft">
-              {scanUrl}
-            </p>
+          <p className="mt-3 font-mono text-xs break-all text-inksoft">
+            {scanUrl}
+          </p>
+          {siteUrl.includes("localhost") &&
+            process.env.NODE_ENV === "production" && (
+              <p
+                role="alert"
+                className="mx-auto mt-2 max-w-xs rounded border-2 border-ink bg-dangersoft/60 px-3 py-2 text-xs font-bold text-danger"
+              >
+                ⚠ QR menunjuk ke localhost — isi NEXT_PUBLIC_SITE_URL dengan
+                domain production agar QR bisa discan.
+              </p>
+            )}
             <a
               href={qrDataUrl}
               download={`qr-${p.name}.png`}
@@ -234,7 +289,7 @@ export default async function ProjectDetailPage({
       </div>
 
       <Window
-        title={`Riwayat_Record.Exe — ${list.length}×`}
+        title={`Riwayat_Record.Exe — ${sessionCount}× · Hal ${spage}/${sessionPages}`}
         bar="bg-mint"
         className="mt-4"
         bare
@@ -263,6 +318,7 @@ export default async function ProjectDetailPage({
             <tbody>
               {list.map((s, i) => {
                 const secs = sessionSecs(s);
+                const num = sessionCount - ((spage - 1) * PER_SESSION + i);
                 return (
                   <tr
                     key={s.id}
@@ -270,7 +326,7 @@ export default async function ProjectDetailPage({
                   >
                     <td className="px-4 py-3">
                       <span className="inline-block rounded border-2 border-ink bg-butter px-1.5 py-0.5 font-mono text-[11px] font-bold">
-                        #{i + 1}
+                        #{num}
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -368,11 +424,18 @@ export default async function ProjectDetailPage({
             </tbody>
           </table>
         </div>
+        <Pager
+          base={`/admin/projects/${id}`}
+          keep={{ spage, apage }}
+          page={spage}
+          totalPages={sessionPages}
+          param="spage"
+        />
       </Window>
 
-      {((corrections ?? []) as Correction[]).length > 0 && (
+      {auditTotal !== null && auditTotal > 0 && (
         <Window
-          title="Audit_Koreksi.Exe"
+          title={`Audit_Koreksi.Exe — ${auditTotal}× · Hal ${apage}/${auditPages}`}
           bar="bg-peach"
           className="mt-4"
           bare
@@ -418,6 +481,13 @@ export default async function ProjectDetailPage({
               </tbody>
             </table>
           </div>
+          <Pager
+            base={`/admin/projects/${id}`}
+            keep={{ spage, apage }}
+            page={apage}
+            totalPages={auditPages}
+            param="apage"
+          />
         </Window>
       )}
     </div>

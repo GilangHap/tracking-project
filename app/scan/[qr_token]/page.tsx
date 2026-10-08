@@ -86,7 +86,10 @@ export default async function ScanPage({
 
   return (
     <Shell>
-      <ScanClient info={info} />
+      <ScanClient
+        key={`${info.next_action}-${info.active_clock_in ?? "none"}-${info.last_clock_out ?? "none"}`}
+        info={info}
+      />
     </Shell>
   );
 }

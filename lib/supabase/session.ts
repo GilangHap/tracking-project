@@ -31,7 +31,19 @@ export async function refreshSession(request: NextRequest) {
 
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
+
+  // Bisect logout misterius: bedakan "cookie tidak ada" vs "server menolak".
+  // Lihat di Vercel Runtime Logs saat kelempar ke /login.
+  if (!user) {
+    const hasAuthCookie = request.cookies
+      .getAll()
+      .some((c) => c.name.includes("-auth-token"));
+    console.warn(
+      `[auth-proxy] no-user path=${request.nextUrl.pathname} hasAuthCookie=${hasAuthCookie} err=${error?.message ?? "none"}`,
+    );
+  }
 
   if (!user && request.nextUrl.pathname.startsWith("/admin")) {
     const url = request.nextUrl.clone();

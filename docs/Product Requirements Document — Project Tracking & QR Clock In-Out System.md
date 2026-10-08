@@ -2,8 +2,9 @@
 
 ## Project Tracking & QR Clock In/Out System
 
-**Version:** 1.2  
-**Status:** Revised (07 Oct 2026)  
+**Version:** 1.3  
+**Status:** Revised (08 Oct 2026)  
+**Changelog v1.3:** Halaman Rekap Record global (/admin/records: search + filter + pagination + Export CSV mengikuti filter). Halaman scanner publik (/scan: kamera dalam website + tempel manual, auto-kembali setelah sukses). Halaman scan tampilkan info Clock In terakhir sebagai anti-fraud.
 **Changelog v1.2:** Tanggal dihapus dari project — create cukup nama + process. Tiap record session membawa tanggal/waktunya sendiri. Dashboard menampilkan rekap record terbaru lintas project.
 **Changelog v1.1:** (1) Status model dikunci: Not Started / Ongoing / Completed (idle) / Archived. (2) Admin koreksi session naik ke MVP. (3) Concurrency serial + anonim: session milik project. (4) Integritas via RPC atomic + partial unique index + UTC. (5) Delete = Archive saja. (6) QR fraud diterima sebagai risiko v1.  
 **Platform:** Web Application  
@@ -1011,15 +1012,18 @@ Codebase menggunakan:
 ├── login
 │
 ├── admin
-│   ├── dashboard
+│   ├── dashboard        (rekap record terbaru)
 │   ├── projects
-│   │   ├── page
+│   │   ├── page         (list + filter)
 │   │   ├── create
-│   │   └── [id]
+│   │   └── [id]         (detail + QR + koreksi)
+│   ├── records          (semua record + search + pagination)
+│   │   └── export       (CSV mengikuti filter, admin only)
 │   └── profile
 │
 └── scan
-    └── [qr_token]
+    ├── page             (scanner kamera + tempel manual, publik)
+    └── [qr_token]       (clock in/out, publik)
 ```
 
 ---
@@ -1040,11 +1044,14 @@ Versi MVP (v1.1 locked) dianggap berhasil apabila sistem telah mampu:
 - [x] Melihat history session.
 - [x] Archive / unarchive project (pengganti delete).
 - [x] Koreksi session: edit jam + hapus session + audit log minimal.
+- [x] Rekap semua record lintas project + search + pagination.
+- [x] Export CSV mengikuti filter (maks 10.000 baris, anti formula-injection).
 
 ### Public
 
-- [x] Scan/access QR (anonim).
-- [x] Menampilkan project + info Clock In terakhir.
+- [x] Scan/access QR (kamera HP maupun scanner di website).
+- [x] Halaman scanner publik + tempel token manual.
+- [x] Menampilkan project + info Clock In terakhir (anti-fraud).
 - [x] Menentukan otomatis Clock In/Out via RPC.
 - [x] Confirmation Clock In.
 - [x] Confirmation Clock Out.
@@ -1074,7 +1081,7 @@ Fitur berikut dapat dikembangkan pada versi berikutnya (admin koreksi SUDAH masu
 4. GPS validation / PIN lokasi (atasi fraud QR).
 5. Device information.
 6. Auto-close session menggantung (aturan lembur / ganti hari).
-7. Export Excel/CSV.
+7. Export Excel (CSV sudah masuk MVP v1.3).
 8. Reporting harian/mingguan/bulanan.
 9. Dashboard analytics.
 10. Grafik total working hours.

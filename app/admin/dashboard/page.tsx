@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDuration, fmtDateWIB, fmtTimeWIB } from "@/lib/format";
 import type { Project } from "@/lib/types";
-import { EmptyRow, SectionBar, Stat, WinControls } from "@/components/ui";
+import { EmptyRow, SectionBar, Stat } from "@/components/ui";
 
 // Halaman dinamis per request (data sesi login) → navigasi boleh blocking.
 export const instant = false;
@@ -218,9 +218,10 @@ export default async function DashboardPage() {
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-end border-t-2 border-ink bg-paperdim px-3 py-1">
-            <WinControls />
-          </div>
+          <div
+            aria-hidden="true"
+            className="border-t-2 border-ink bg-paper px-3 py-2"
+          />
         </div>
       </div>
     </div>

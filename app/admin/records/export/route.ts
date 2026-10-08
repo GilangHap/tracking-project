@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { escapeLike } from "@/lib/search";
 import { fmtDuration, fmtDateWIB, fmtTimeWIB } from "@/lib/format";
 
 const MAX_EXPORT = 10000;
 
 function csvCell(v: string | number): string {
-  return `"${String(v).replace(/"/g, '""')}"`;
+  let s = String(v);
+  // Anti formula-injection: sel yang diawali = + - @ (atau tab/CR)
+  // dipaksa jadi teks agar Excel tidak mengeksekusinya.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return `"${s.replace(/"/g, '""')}"`;
 }
 
 function stampWIB(d: Date): string {
@@ -49,7 +54,7 @@ export async function GET(req: NextRequest) {
     .eq("projects.is_archived", false)
     .order("clock_in", { ascending: false })
     .limit(MAX_EXPORT);
-  if (q) query = query.ilike("projects.name", `%${q}%`);
+  if (q) query = query.ilike("projects.name", `%${escapeLike(q)}%`);
   if (process) query = query.eq("projects.process", process);
   if (from) query = query.gte("clock_in", `${from}T00:00:00+07:00`);
   if (to) query = query.lte("clock_in", `${to}T23:59:59.999+07:00`);
