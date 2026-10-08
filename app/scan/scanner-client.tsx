@@ -7,7 +7,20 @@ import { Window } from "@/components/ui";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type CamState = "idle" | "starting" | "scanning" | "denied" | "none" | "error";
+type CamState =
+  | "idle"
+  | "starting"
+  | "scanning"
+  | "denied"
+  | "none"
+  | "insecure"
+  | "busy"
+  | "error";
+
+interface CamDevice {
+  id: string;
+  label: string;
+}
 
 /** Ambil token dari hasil scan (URL penuh atau token mentah). */
 function extractToken(raw: string): string | null {
@@ -17,12 +30,34 @@ function extractToken(raw: string): string | null {
   return UUID_RE.test(candidate) ? candidate : null;
 }
 
+/** Pilih kamera belakang bila ketahuan, kalau tidak kamera pertama. */
+function pickPreferred(cams: CamDevice[]): CamDevice {
+  const back = cams.find((c) =>
+    /back|rear|environment|belakang/i.test(c.label),
+  );
+  return back ?? cams[0];
+}
+
+function messageFor(e: unknown): CamState {
+  const name = e instanceof Error ? e.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "denied";
+  if (name === "NotFoundError" || name === "OverconstrainedError")
+    return "none";
+  if (name === "NotReadableError" || name === "TrackStartError") return "busy";
+  return "error";
+}
+
 /** Halaman scanner publik: kamera HP/laptop atau tempel token manual. */
 export function ScannerClient() {
   const router = useRouter();
-  const hostRef = useRef<HTMLDivElement>(null);
-  const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
+  const scannerRef = useRef<{
+    stop: () => Promise<void>;
+    clear: () => void;
+  } | null>(null);
+  const startingRef = useRef(false);
   const [cam, setCam] = useState<CamState>("idle");
+  const [cams, setCams] = useState<CamDevice[]>([]);
+  const [camId, setCamId] = useState<string>("");
   const [manual, setManual] = useState("");
   const [manualError, setManualError] = useState<string | null>(null);
 
@@ -43,19 +78,17 @@ export function ScannerClient() {
     };
   }, [stop]);
 
-  async function start() {
+  async function startWith(deviceId: string) {
+    if (startingRef.current) return;
+    startingRef.current = true;
     setCam("starting");
     try {
       // Dynamic import agar SSR/prerender tidak menyentuh API browser.
       const { Html5Qrcode } = await import("html5-qrcode");
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setCam("none");
-        return;
-      }
       const scanner = new Html5Qrcode("qr-viewport");
       scannerRef.current = scanner;
       await scanner.start(
-        { facingMode: "environment" },
+        { deviceId: { exact: deviceId } },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         async (decoded) => {
           const token = extractToken(decoded);
@@ -68,11 +101,55 @@ export function ScannerClient() {
           // frame tanpa QR — abaikan diam-diam
         },
       );
+      setCamId(deviceId);
       setCam("scanning");
     } catch (e) {
-      const name = e instanceof Error ? e.name : "";
-      setCam(name === "NotAllowedError" ? "denied" : "error");
+      await stop();
+      setCam(messageFor(e));
+    } finally {
+      startingRef.current = false;
     }
+  }
+
+  async function start() {
+    // Kamera browser wajib konteks aman (HTTPS / localhost).
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setCam("insecure");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCam("none");
+      return;
+    }
+    setCam("starting");
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const found = await Html5Qrcode.getCameras();
+      if (!found || found.length === 0) {
+        setCam("none");
+        return;
+      }
+      const list = found.map((c, i) => ({
+        id: c.id,
+        label: c.label || `Kamera ${i + 1}`,
+      }));
+      setCams(list);
+      // Coba satu per satu sampai ada yang jalan (belakang dulu).
+      const ordered = [pickPreferred(list), ...list.filter((c) => c !== pickPreferred(list))];
+      for (const c of ordered) {
+        await startWith(c.id);
+        if (scannerRef.current) return;
+      }
+      setCam("error");
+    } catch (e) {
+      setCam(messageFor(e));
+    }
+  }
+
+  async function switchCamera(id: string) {
+    await stop();
+    setCam("idle");
+    await startWith(id);
   }
 
   function openManual(e: React.FormEvent) {
@@ -93,7 +170,10 @@ export function ScannerClient() {
           <div className="relative overflow-hidden rounded border-2 border-ink">
             <div id="qr-viewport" className="w-full [&_video]:w-full" />
             {/* Bingkai bidik */}
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0"
+            >
               <span className="absolute top-4 left-4 h-8 w-8 border-t-4 border-l-4 border-butter" />
               <span className="absolute top-4 right-4 h-8 w-8 border-t-4 border-r-4 border-butter" />
               <span className="absolute bottom-4 left-4 h-8 w-8 border-b-4 border-l-4 border-butter" />
@@ -103,6 +183,22 @@ export function ScannerClient() {
           <p className="mt-3 text-center font-mono text-xs tracking-widest text-inksoft uppercase">
             Arahkan kamera ke QR project…
           </p>
+          {cams.length > 1 && (
+            <label className="mt-3 block font-mono text-xs font-bold tracking-widest uppercase">
+              Kamera
+              <select
+                value={camId}
+                onChange={(e) => switchCamera(e.target.value)}
+                className="mt-1 w-full rounded border-2 border-ink bg-paper px-3 py-2 text-sm"
+              >
+                {cams.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             type="button"
             onClick={async () => {
@@ -128,18 +224,46 @@ export function ScannerClient() {
             {cam === "starting" ? "Menyalakan…" : "◎ Nyalakan Kamera"}
           </button>
           {cam === "denied" && (
-            <p role="alert" className="mt-3 rounded border-2 border-ink bg-dangersoft/60 px-3 py-2 text-sm font-bold text-danger">
-              ✕ Akses kamera ditolak. Izinkan kamera di browser, atau tempel
-              token manual di bawah.
+            <p
+              role="alert"
+              className="mt-3 rounded border-2 border-ink bg-dangersoft/60 px-3 py-2 text-sm font-bold text-danger"
+            >
+              ✕ Akses kamera ditolak. Izinkan kamera di pengaturan browser /
+              HP, lalu coba lagi.
             </p>
           )}
           {cam === "none" && (
-            <p role="alert" className="mt-3 rounded border-2 border-ink bg-peach/50 px-3 py-2 text-sm font-bold">
-              Perangkat ini tidak punya kamera. Tempel token manual di bawah.
+            <p
+              role="alert"
+              className="mt-3 rounded border-2 border-ink bg-peach/50 px-3 py-2 text-sm font-bold"
+            >
+              Perangkat ini tidak punya kamera yang cocok. Tempel token
+              manual di bawah.
+            </p>
+          )}
+          {cam === "insecure" && (
+            <p
+              role="alert"
+              className="mt-3 rounded border-2 border-ink bg-peach/50 px-3 py-2 text-sm font-bold"
+            >
+              Kamera butuh koneksi aman. Buka situs ini via HTTPS (atau
+              localhost), bukan http biasa.
+            </p>
+          )}
+          {cam === "busy" && (
+            <p
+              role="alert"
+              className="mt-3 rounded border-2 border-ink bg-peach/50 px-3 py-2 text-sm font-bold"
+            >
+              Kamera sedang dipakai aplikasi lain (Zoom/Meet/dll). Tutup
+              aplikasi itu lalu coba lagi.
             </p>
           )}
           {cam === "error" && (
-            <p role="alert" className="mt-3 rounded border-2 border-ink bg-dangersoft/60 px-3 py-2 text-sm font-bold text-danger">
+            <p
+              role="alert"
+              className="mt-3 rounded border-2 border-ink bg-dangersoft/60 px-3 py-2 text-sm font-bold text-danger"
+            >
               ✕ Kamera gagal dinyalakan. Coba lagi atau tempel token manual.
             </p>
           )}
