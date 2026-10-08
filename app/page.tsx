@@ -54,7 +54,7 @@ export default function Home() {
           </p>
           <Link
             href="/login"
-            className="press rounded border-2 border-ink bg-butter px-4 py-2 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            className="press lift rounded border-2 border-ink bg-butter px-4 py-2 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           >
             → Masuk
           </Link>
@@ -82,25 +82,25 @@ export default function Home() {
                 Setiap project punya QR Code unik. Operator scan dari HP untuk
                 Clock In dan Clock Out — durasi dihitung otomatis.
               </p>
-              <p className="mt-4 font-display text-3xl font-bold text-bubblegumink">
-                Rp 0<span className="text-lg">, gratis selamanya*</span>
-              </p>
-              <p className="font-mono text-[11px] text-inkfaint">
-                *JALANKAN DI SERVER SENDIRI
-              </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link
                   href="/login"
-                  className="press rounded border-2 border-ink bg-butter px-6 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                  className="press lift rounded border-2 border-ink bg-butter px-6 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
                 >
                   Buka Dashboard
                 </Link>
                 <a
                   href="#cara-kerja"
-                  className="press rounded border-2 border-ink bg-paper px-6 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                  className="press rounded border-2 border-ink bg-paper px-6 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm hover:bg-lavender focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
                 >
                   Cara Kerja
                 </a>
+                <Link
+                  href="/scan"
+                  className="press lift rounded border-2 border-ink bg-ink px-6 py-3 font-mono text-sm font-bold tracking-wider uppercase text-white shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                >
+                  ◎ Scan QR
+                </Link>
               </div>
             </div>
             <div className="grid place-items-center rounded border-2 border-dashed border-ink/40 bg-canvas p-6">

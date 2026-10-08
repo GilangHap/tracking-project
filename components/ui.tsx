@@ -92,10 +92,11 @@ export function Btn({
   variant?: "primary" | "paper" | "dark" | "danger";
 }) {
   const styles = {
-    primary: "bg-butter text-ink hover:bg-lavender",
-    paper: "bg-paper text-ink hover:bg-lavender",
-    dark: "bg-ink text-white hover:bg-inksoft",
-    danger: "bg-dangersoft text-danger hover:bg-bubblegum/40",
+    // primary (butter): warna tetap, feedback = lift + press — seperti CTA aslinya.
+    primary: "press lift bg-butter text-ink",
+    paper: "press bg-paper text-ink hover:bg-lavender",
+    dark: "press lift bg-ink text-white",
+    danger: "press bg-paper text-danger hover:bg-dangersoft/60",
   } as const;
   return (
     <button

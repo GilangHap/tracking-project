@@ -175,7 +175,7 @@ export default async function ProjectDetailPage({
             <a
               href={qrDataUrl}
               download={`qr-${p.name}.png`}
-              className={`${BTN} mt-3 inline-block bg-butter text-ink`}
+              className={`${BTN} lift mt-3 inline-block bg-butter text-ink`}
             >
               ↓ Download QR
             </a>
@@ -186,7 +186,7 @@ export default async function ProjectDetailPage({
                 name="archived"
                 value={p.is_archived ? "false" : "true"}
               />
-              <button type="submit" className={`${BTN} w-full bg-paper`}>
+              <button type="submit" className={`${BTN} w-full bg-paper hover:bg-lavender`}>
                 {p.is_archived ? "Unarchive Project" : "Archive Project"}
               </button>
             </form>
@@ -225,7 +225,7 @@ export default async function ProjectDetailPage({
             </Field>
             <button
               type="submit"
-              className={`${BTN} w-full bg-ink text-white`}
+              className={`${BTN} lift w-full bg-ink text-white`}
             >
               Simpan Perubahan
             </button>
@@ -340,7 +340,7 @@ export default async function ProjectDetailPage({
                           />
                           <button
                             type="submit"
-                            className="press min-h-9 w-full cursor-pointer rounded border-2 border-ink bg-ink px-3 py-1.5 font-mono text-xs font-bold uppercase text-white shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                            className="press lift min-h-9 w-full cursor-pointer rounded border-2 border-ink bg-ink px-3 py-1.5 font-mono text-xs font-bold uppercase text-white shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
                           >
                             Simpan koreksi
                           </button>

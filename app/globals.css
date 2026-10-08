@@ -88,6 +88,23 @@ a {
   box-shadow: 0 0 0 var(--color-ink);
 }
 
+/* Lift: saat hover bayangan membesar + tombol terangkat; saat tekan amblas. */
+.lift {
+  transition:
+    transform 0.12s ease-out,
+    box-shadow 0.12s ease-out;
+}
+@media (hover: hover) {
+  .lift:hover {
+    box-shadow: 4px 4px 0 var(--color-ink);
+    transform: translate(-2px, -2px);
+  }
+}
+.lift:active:not(:disabled) {
+  box-shadow: 0 0 0 var(--color-ink);
+  transform: translate(1px, 1px);
+}
+
 /* Link dengan highlight butter saat hover. */
 .mark-link {
   background-image: linear-gradient(var(--color-butter), var(--color-butter));

@@ -39,5 +39,12 @@ export async function refreshSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Sudah login tapi buka /login → lempar ke dashboard.
+  if (user && request.nextUrl.pathname === "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/dashboard";
+    return NextResponse.redirect(url);
+  }
+
   return supabaseResponse;
 }

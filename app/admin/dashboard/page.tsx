@@ -93,7 +93,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/admin/projects/create"
-          className="press rounded border-2 border-ink bg-butter px-4 py-2.5 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          className="press lift rounded border-2 border-ink bg-butter px-4 py-2.5 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
         >
           + Project
         </Link>
@@ -135,7 +135,7 @@ export default async function DashboardPage() {
           bar="bg-butter"
           action={
             <Link
-              href="/admin/projects"
+              href="/admin/records"
               className="press rounded border-2 border-ink bg-paper px-3 py-1 font-mono text-xs font-bold tracking-wider uppercase shadow-brutal-sm"
             >
               Semua →

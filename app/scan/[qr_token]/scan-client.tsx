@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fmtTimeWIB, fmtDuration } from "@/lib/format";
 import type { ClockResult, ScanInfo } from "@/lib/types";
@@ -16,9 +17,28 @@ const FOCUS =
  * tombol raksasa border tebal + shadow, readout mono.
  */
 export default function ScanClient({ info }: { info: ScanInfo }) {
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("ready");
   const [result, setResult] = useState<ClockResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(4);
+
+  // Sukses → kembali otomatis ke halaman scanner.
+  useEffect(() => {
+    if (phase !== "done") return;
+    setCountdown(4);
+    const tick = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(tick);
+          router.push("/scan");
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [phase, router]);
 
   const action = result?.action ?? info.next_action;
   const isIn = action === "IN";
@@ -96,7 +116,7 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
         {phase === "ready" && (
           <button
             onClick={() => setPhase("confirm")}
-            className={`press mt-4 min-h-20 w-full cursor-pointer rounded border-2 border-ink px-5 py-5 font-mono text-2xl font-bold tracking-wider uppercase shadow-brutal ${FOCUS} ${
+            className={`press lift mt-4 min-h-20 w-full cursor-pointer rounded border-2 border-ink px-5 py-5 font-mono text-2xl font-bold tracking-wider uppercase shadow-brutal ${FOCUS} ${
               isIn ? "bg-butter" : "bg-peach"
             }`}
           >
@@ -118,7 +138,7 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
               </button>
               <button
                 onClick={submit}
-                className={`press min-h-14 cursor-pointer rounded border-2 border-ink px-5 py-3 font-mono text-lg font-bold uppercase shadow-brutal-sm ${FOCUS} ${
+                className={`press lift min-h-14 cursor-pointer rounded border-2 border-ink px-5 py-3 font-mono text-lg font-bold uppercase shadow-brutal-sm ${FOCUS} ${
                   isIn ? "bg-butter" : "bg-peach"
                 }`}
               >
@@ -155,6 +175,13 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
                 SCAN LAGI UNTUK CLOCK OUT
               </p>
             )}
+            <button
+              type="button"
+              onClick={() => router.push("/scan")}
+              className={`press lift mt-3 min-h-12 w-full cursor-pointer rounded border-2 border-ink bg-butter px-5 py-2 font-mono font-bold uppercase shadow-brutal-sm ${FOCUS}`}
+            >
+              ◎ Scan Lagi {countdown > 0 ? `(${countdown})` : ""}
+            </button>
           </div>
         )}
 

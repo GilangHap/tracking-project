@@ -39,13 +39,13 @@ export default function CreateProjectPage() {
           <div className="mt-6 flex gap-2">
             <button
               type="submit"
-              className="press min-h-11 flex-1 cursor-pointer rounded border-2 border-ink bg-butter px-5 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              className="press lift min-h-11 flex-1 cursor-pointer rounded border-2 border-ink bg-butter px-5 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             >
               Simpan & Buat QR
             </button>
             <Link
               href="/admin/projects"
-              className="press min-h-11 rounded border-2 border-ink bg-paper px-5 py-3 text-center font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              className="press min-h-11 rounded border-2 border-ink bg-paper px-5 py-3 text-center hover:bg-lavender font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             >
               Batal
             </Link>

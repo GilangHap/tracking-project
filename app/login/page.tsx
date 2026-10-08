@@ -84,7 +84,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="press mt-6 min-h-12 w-full cursor-pointer rounded border-2 border-ink bg-butter px-5 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            className="press lift mt-6 min-h-12 w-full cursor-pointer rounded border-2 border-ink bg-butter px-5 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           >
             {loading ? "Memeriksa…" : "→ Masuk"}
           </button>
