@@ -50,7 +50,8 @@ export function fmtDuration(totalSecs: number): string {
 }
 
 /**
- * ISO UTC → nilai input datetime-local dalam WIB ("2026-10-07T15:30").
+ * ISO UTC → nilai input datetime-local dalam WIB ("2026-10-07T15:30:45").
+ * Detik disertakan agar session pendek tidak patah saat dikoreksi.
  * Dipakai prefill form koreksi admin.
  */
 export function toWIBInputValue(iso: string): string {
@@ -62,13 +63,20 @@ export function toWIBInputValue(iso: string): string {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
     hour12: false,
   }).formatToParts(d);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}`;
 }
 
-/** Nilai datetime-local (diisi sebagai WIB) → ISO UTC untuk DB. */
+/**
+ * Nilai datetime-local (diisi sebagai WIB, dengan/tanpa detik)
+ * → ISO UTC untuk DB.
+ */
 export function wibInputToISO(local: string): string {
-  return new Date(`${local}:00+07:00`).toISOString();
+  const withSecs = local.length === 16 ? `${local}:00` : local;
+  const d = new Date(`${withSecs}+07:00`);
+  if (Number.isNaN(d.getTime())) throw new Error("INVALID_INPUT");
+  return d.toISOString();
 }

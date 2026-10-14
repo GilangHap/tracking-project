@@ -22,6 +22,8 @@ interface RecentRecord {
   id: string;
   clock_in: string;
   clock_out: string | null;
+  clock_in_by: string | null;
+  clock_out_by: string | null;
   projects: { id: string; name: string; process: string };
 }
 
@@ -74,7 +76,9 @@ export default async function DashboardPage() {
 
   const { data: recent } = await supabase
     .from("work_sessions")
-    .select("id, clock_in, clock_out, projects!inner(id, name, process)")
+    .select(
+      "id, clock_in, clock_out, clock_in_by, clock_out_by, projects!inner(id, name, process)",
+    )
     .eq("projects.is_archived", false)
     .order("clock_in", { ascending: false })
     .limit(15);
@@ -159,6 +163,9 @@ export default async function DashboardPage() {
                   <th scope="col" className="px-4 py-2.5 font-bold">
                     In → Out
                   </th>
+                  <th scope="col" className="px-4 py-2.5 font-bold">
+                    Operator
+                  </th>
                   <th
                     scope="col"
                     className="px-4 py-2.5 text-right font-bold"
@@ -204,17 +211,25 @@ export default async function DashboardPage() {
                           </span>
                         )}
                       </td>
+                      <td className="max-w-40 px-4 py-3 text-sm">
+                        <span className="block truncate font-bold">
+                          {r.clock_in_by ?? "—"}
+                        </span>
+                        <span className="block truncate text-xs text-inksoft">
+                          → {r.clock_out_by ?? "…"}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-right font-display text-base font-bold text-bubblegumink tabular-nums">
                         {secs === null ? "—" : fmtDuration(secs)}
                       </td>
                     </tr>
                   );
                 })}
-                {records.length === 0 && (
-                  <EmptyRow colSpan={5}>
-                    Belum ada record. Scan QR project untuk Clock In pertama.
-                  </EmptyRow>
-                )}
+            {records.length === 0 && (
+              <EmptyRow colSpan={6}>
+                Belum ada record. Scan QR project untuk Clock In pertama.
+              </EmptyRow>
+            )}
               </tbody>
             </table>
           </div>

@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("work_sessions")
-    .select("clock_in, clock_out, projects!inner(name, process)")
+    .select("clock_in, clock_out, clock_in_by, clock_out_by, projects!inner(name, process)")
     .eq("projects.is_archived", false)
     .order("clock_in", { ascending: false })
     .limit(MAX_EXPORT);
@@ -65,11 +65,23 @@ export async function GET(req: NextRequest) {
   const rows = (data ?? []) as unknown as {
     clock_in: string;
     clock_out: string | null;
+    clock_in_by: string | null;
+    clock_out_by: string | null;
     projects: { name: string; process: string };
   }[];
 
   const lines = [
-    ["Tanggal", "Project", "Process", "Clock In", "Clock Out", "Durasi", "Status"]
+    [
+      "Tanggal",
+      "Project",
+      "Process",
+      "Clock In",
+      "Clock In Oleh",
+      "Clock Out",
+      "Clock Out Oleh",
+      "Durasi",
+      "Status",
+    ]
       .map(csvCell)
       .join(";"),
   ];
@@ -89,7 +101,9 @@ export async function GET(req: NextRequest) {
         r.projects.name,
         r.projects.process,
         fmtTimeWIB(r.clock_in),
+        r.clock_in_by ?? "",
         r.clock_out ? fmtTimeWIB(r.clock_out) : "",
+        r.clock_out_by ?? "",
         secs === null ? "" : fmtDuration(secs),
         secs === null ? "AKTIF" : "SELESAI",
       ]

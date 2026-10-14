@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fmtDateWIB, fmtTimeWIB, fmtDuration } from "@/lib/format";
@@ -22,7 +22,11 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [result, setResult] = useState<ClockResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(4);
+  // Kunci anti double-tap: re-render bisa kalah cepat dari klik kedua.
+  const submittingRef = useRef(false);
   // Sukses → hitung mundur dari 4, lalu kembali otomatis ke scanner.
   // (countdown cukup inisialisasi sekali: tiap mount hanya 1x done.)
   useEffect(() => {
@@ -58,7 +62,18 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
     };
   }, [router]);
 
+  function requestConfirm() {
+    if (name.trim() === "") {
+      setNameError("Isi nama operator dulu…");
+      return;
+    }
+    setNameError(null);
+    setPhase("confirm");
+  }
+
   async function submit() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setPhase("working");
     setError(null);
     try {
@@ -68,6 +83,7 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
       const supabase = createClient();
       const { data, error } = await supabase.rpc("clock_toggle", {
         p_qr_token: token,
+        p_operator_name: name.trim(),
       });
       if (error) throw new Error(error.message);
       setResult(data as ClockResult);
@@ -80,9 +96,18 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
         setError("Tombol sudah ditekan / scan ganda. Muat ulang halaman…");
       } else if (msg.includes("PROJECT_NOT_FOUND")) {
         setError("QR tidak valid atau project tidak ditemukan.");
+      } else if (
+        msg.includes("OPERATOR_REQUIRED") ||
+        msg.includes("OPERATOR_INVALID")
+      ) {
+        setNameError("Isi nama operator dulu (maks 100 karakter)…");
+        submittingRef.current = false;
+        setPhase("ready");
+        return;
       } else {
         setError("Gagal menyimpan. Periksa sinyal lalu coba lagi.");
       }
+      submittingRef.current = false;
       setPhase("failed");
     }
   }
@@ -120,8 +145,13 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
               {isIn ? "Siap · Clock In" : "Siap · Clock Out"}
             </span>
             {info.next_action === "OUT" && info.active_clock_in && (
-              <span className="font-mono text-sm font-bold tabular-nums">
+              <span className="text-right font-mono text-sm font-bold tabular-nums">
                 IN {fmtTimeWIB(info.active_clock_in)}
+                {info.active_clock_in_by && (
+                  <span className="block text-xs font-bold">
+                    oleh {info.active_clock_in_by}
+                  </span>
+                )}
               </span>
             )}
           </div>
@@ -131,27 +161,53 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
           <p className="mt-2 font-mono text-xs text-inksoft">
             TERAKHIR: {fmtDateWIB(info.last_clock_in)}{" "}
             {fmtTimeWIB(info.last_clock_in)}
+            {info.last_clock_in_by ? ` oleh ${info.last_clock_in_by}` : ""}
             {info.last_clock_out
-              ? ` → ${fmtTimeWIB(info.last_clock_out)}`
+              ? ` → ${fmtTimeWIB(info.last_clock_out)}${info.last_clock_out_by ? ` oleh ${info.last_clock_out_by}` : ""}`
               : " (belum clock out)"}
           </p>
         )}
 
         {phase === "ready" && (
-          <button
-            onClick={() => setPhase("confirm")}
-            className={`press lift mt-4 min-h-20 w-full cursor-pointer rounded border-2 border-ink px-5 py-5 font-mono text-2xl font-bold tracking-wider uppercase shadow-brutal ${FOCUS} ${
-              isIn ? "bg-butter" : "bg-peach"
-            }`}
-          >
-            {isIn ? "Clock In" : "Clock Out"}
-          </button>
+          <>
+            <label className="mt-4 block text-left font-mono text-xs font-bold tracking-widest uppercase">
+              Nama operator
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={100}
+                required
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="cth. Andi…"
+                aria-label="Nama operator"
+                className="mt-1 w-full rounded border-2 border-ink bg-paper px-4 py-3 font-body text-base font-semibold normal-case placeholder:font-normal placeholder:text-inkfaint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              />
+            </label>
+            {nameError && (
+              <p role="alert" className="mt-2 text-left text-sm font-bold text-danger">
+                ✕ {nameError}
+              </p>
+            )}
+            <button
+              onClick={requestConfirm}
+              className={`press lift mt-3 min-h-20 w-full cursor-pointer rounded border-2 border-ink px-5 py-5 font-mono text-2xl font-bold tracking-wider uppercase shadow-brutal ${FOCUS} ${
+                isIn ? "bg-butter" : "bg-peach"
+              }`}
+            >
+              {isIn ? "Clock In" : "Clock Out"}
+            </button>
+          </>
         )}
 
         {phase === "confirm" && (
           <div className="mt-4 rounded border-2 border-ink bg-canvas p-4">
             <p className="font-bold">
-              Yakin {isIn ? "Clock In" : "Clock Out"} {info.name}?
+              <span className="rounded border-2 border-ink bg-paper px-2 py-0.5 font-mono text-sm">
+                {name.trim()}
+              </span>{" "}
+              yakin {isIn ? "Clock In" : "Clock Out"} {info.name}?
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
@@ -189,6 +245,11 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
                 ? `${fmtTimeWIB(result.clock_in)} → ${fmtTimeWIB(result.clock_out)}`
                 : fmtTimeWIB(result.clock_in)}
             </p>
+            {(result.clock_in_by || result.clock_out_by) && (
+              <p className="mt-1 font-mono text-xs font-bold tracking-wider uppercase">
+                {result.clock_in_by ?? "—"} → {result.clock_out_by ?? "…"}
+              </p>
+            )}
             {typeof result.duration_secs === "number" && (
               <p className="mt-1 font-display text-4xl font-bold text-bubblegumink tabular-nums">
                 {fmtDuration(result.duration_secs)}

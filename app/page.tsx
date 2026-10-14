@@ -49,9 +49,12 @@ export default function Home() {
 
       <header className="border-b-2 border-ink bg-paper">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3">
-          <p className="font-brand text-xl font-semibold tracking-tight">
+          <Link
+            href="/"
+            className="rounded font-brand text-xl font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          >
             Project<span className="text-bubblegumink">_</span>Tracker
-          </p>
+          </Link>
           <Link
             href="/login"
             className="press lift rounded border-2 border-ink bg-butter px-4 py-2 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"

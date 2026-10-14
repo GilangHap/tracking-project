@@ -53,9 +53,12 @@ export default function LoginPage() {
           className="p-5 md:p-6"
           aria-label="Form login admin"
         >
-          <p className="font-brand text-xl font-semibold tracking-tight">
+          <Link
+            href="/"
+            className="inline-block rounded font-brand text-xl font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          >
             Project<span className="text-bubblegumink">_</span>Tracker
-          </p>
+          </Link>
           <h1 className="mt-1 font-display text-2xl font-bold uppercase">
             Login Admin
           </h1>

@@ -65,9 +65,12 @@ export default async function AdminLayout({
       <header className="sticky top-0 z-10 border-b-2 border-ink bg-paper">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="truncate font-brand text-lg font-semibold tracking-tight">
+            <Link
+              href="/"
+              className="truncate rounded font-brand text-lg font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            >
               Project<span className="text-bubblegumink">_</span>Tracker
-            </p>
+            </Link>
             <nav
               aria-label="Navigasi admin"
               className="hidden gap-1 sm:flex"

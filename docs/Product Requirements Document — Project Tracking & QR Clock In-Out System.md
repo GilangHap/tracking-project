@@ -2,8 +2,9 @@
 
 ## Project Tracking & QR Clock In/Out System
 
-**Version:** 1.3  
+**Version:** 1.4  
 **Status:** Revised (08 Oct 2026)  
+**Changelog v1.4:** Nama operator wajib sebelum Clock In maupun Clock Out, tercatat per event (yang IN dan yang OUT boleh beda orang). Tampil di scan/detail/dashboard/rekap/export; bisa dikoreksi admin + teraudit.
 **Changelog v1.3:** Halaman Rekap Record global (/admin/records: search + filter + pagination + Export CSV mengikuti filter). Halaman scanner publik (/scan: kamera dalam website + tempel manual, auto-kembali setelah sukses). Halaman scan tampilkan info Clock In terakhir sebagai anti-fraud.
 **Changelog v1.2:** Tanggal dihapus dari project — create cukup nama + process. Tiap record session membawa tanggal/waktunya sendiri. Dashboard menampilkan rekap record terbaru lintas project.
 **Changelog v1.1:** (1) Status model dikunci: Not Started / Ongoing / Completed (idle) / Archived. (2) Admin koreksi session naik ke MVP. (3) Concurrency serial + anonim: session milik project. (4) Integritas via RPC atomic + partial unique index + UTC. (5) Delete = Archive saja. (6) QR fraud diterima sebagai risiko v1.  
@@ -142,6 +143,8 @@ Public user:
 - Melakukan konfirmasi Clock Out.
 
 > LOCKED v1.1 (hasil grilling): identitas operator TIDAK dicatat. Session adalah milik PROJECT, bukan milik orang. Siapa pun yang memegang URL QR dianggap operator sah. Konsekuensi: jika shift pagi Clock In oleh Andi lalu siang Budi scan, scan Budi dibaca sebagai Clock OUT milik session Andi. Ini accepted untuk v1. Tracking per-operator masuk Future (Section 27).
+>
+> UPDATE v1.4: setiap scan WAJIB mengisi nama operator (validasi server, maks 100 karakter). Nama yang Clock In (`clock_in_by`) dan yang Clock Out (`clock_out_by`) dicatat terpisah per session — ganti shift tetap terekam benar. Tanpa login (nama diketik manual).
 
 ---
 
@@ -363,15 +366,16 @@ Dengan demikian, status project secara otomatis berubah berdasarkan session tera
 
 # 11. Work Session
 
-Setiap pasangan Clock In dan Clock Out disimpan sebagai satu session.
+Setiap pasangan Clock In dan Clock Out disimpan sebagai satu session,
+beserta nama operator tiap event.
 
 Contoh:
 
 ```text
 Session #1
 
-Clock In  : 08:30
-Clock Out : 10:45
+Clock In  : 08:30 oleh Andi
+Clock Out : 10:45 oleh Budi
 Duration  : 02:15
 ```
 
@@ -1051,6 +1055,7 @@ Versi MVP (v1.1 locked) dianggap berhasil apabila sistem telah mampu:
 
 - [x] Scan/access QR (kamera HP maupun scanner di website).
 - [x] Halaman scanner publik + tempel token manual.
+- [x] Wajib isi nama operator sebelum Clock In/Out (validasi server).
 - [x] Menampilkan project + info Clock In terakhir (anti-fraud).
 - [x] Menentukan otomatis Clock In/Out via RPC.
 - [x] Confirmation Clock In.

@@ -1,8 +1,14 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { createProject } from "@/app/admin/projects/actions";
 import { Field, Window, inputCls } from "@/components/ui";
+import { SubmitButton } from "@/components/submit-button";
 
-export default function CreateProjectPage() {
+// Dinamis per request agar client_key idempotency selalu baru.
+export const instant = false;
+
+export default async function CreateProjectPage() {
+  await connection();
   return (
     <div className="max-w-lg">
       <h1 className="font-display text-3xl font-bold uppercase">
@@ -13,6 +19,8 @@ export default function CreateProjectPage() {
       </p>
       <Window title="Form_Project.Exe" bar="bg-mint" className="mt-4">
         <form action={createProject} aria-label="Form project baru">
+          {/* Kunci idempotency: klik ganda mengirim key sama → 1 project. */}
+          <input type="hidden" name="client_key" value={crypto.randomUUID()} />
           <Field
             label="Nama Project"
             hint="Contoh: Bracket Arm Q3 — maks 200 karakter."
@@ -37,12 +45,12 @@ export default function CreateProjectPage() {
             </Field>
           </div>
           <div className="mt-6 flex gap-2">
-            <button
-              type="submit"
-              className="press lift min-h-11 flex-1 cursor-pointer rounded border-2 border-ink bg-butter px-5 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            <SubmitButton
+              pendingChildren="Menyimpan…"
+              className="press lift min-h-11 flex-1 rounded border-2 border-ink bg-butter px-5 py-3 font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             >
               Simpan & Buat QR
-            </button>
+            </SubmitButton>
             <Link
               href="/admin/projects"
               className="press min-h-11 rounded border-2 border-ink bg-paper px-5 py-3 text-center hover:bg-lavender font-mono text-sm font-bold tracking-wider uppercase shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"

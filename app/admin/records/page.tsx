@@ -15,6 +15,8 @@ interface RecordRow {
   id: string;
   clock_in: string;
   clock_out: string | null;
+  clock_in_by: string | null;
+  clock_out_by: string | null;
   projects: { id: string; name: string; process: string };
 }
 
@@ -74,9 +76,12 @@ export default async function RecordsPage({
   const supabase = await createClient();
   let query = supabase
     .from("work_sessions")
-    .select("id, clock_in, clock_out, projects!inner(id, name, process)", {
-      count: "exact",
-    })
+    .select(
+      "id, clock_in, clock_out, clock_in_by, clock_out_by, projects!inner(id, name, process)",
+      {
+        count: "exact",
+      },
+    )
     .eq("projects.is_archived", false)
     .order("clock_in", { ascending: false });
   if (f.q) query = query.ilike("projects.name", `%${escapeLike(f.q)}%`);
@@ -220,6 +225,9 @@ export default async function RecordsPage({
                   <th scope="col" className="px-4 py-2.5 font-bold">
                     Clock Out
                   </th>
+                  <th scope="col" className="px-4 py-2.5 font-bold">
+                    Operator
+                  </th>
                   <th scope="col" className="px-4 py-2.5 text-right font-bold">
                     Durasi
                   </th>
@@ -259,6 +267,14 @@ export default async function RecordsPage({
                           </span>
                         )}
                       </td>
+                      <td className="max-w-40 px-4 py-3 text-sm">
+                        <span className="block truncate font-bold">
+                          {r.clock_in_by ?? "—"}
+                        </span>
+                        <span className="block truncate text-xs text-inksoft">
+                          → {r.clock_out_by ?? "…"}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-right font-display font-bold text-bubblegumink tabular-nums">
                         {secs === null ? "—" : fmtDuration(secs)}
                       </td>
@@ -266,7 +282,7 @@ export default async function RecordsPage({
                   );
                 })}
                 {records.length === 0 && (
-                  <EmptyRow colSpan={5}>
+                  <EmptyRow colSpan={6}>
                     Tidak ada record yang cocok. Ubah kata kunci atau tanggal.
                   </EmptyRow>
                 )}

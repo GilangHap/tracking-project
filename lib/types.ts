@@ -16,6 +16,8 @@ export interface WorkSession {
   clock_in: string;
   clock_out: string | null;
   duration: string | null;
+  clock_in_by: string | null;
+  clock_out_by: string | null;
 }
 
 export interface ScanInfo {
@@ -25,8 +27,11 @@ export interface ScanInfo {
   is_archived: boolean;
   next_action: "IN" | "OUT";
   active_clock_in: string | null;
+  active_clock_in_by: string | null;
   last_clock_in: string | null;
   last_clock_out: string | null;
+  last_clock_in_by: string | null;
+  last_clock_out_by: string | null;
 }
 
 export interface ClockResult {
@@ -35,6 +40,8 @@ export interface ClockResult {
   session_id: string;
   clock_in: string;
   clock_out: string | null;
+  clock_in_by: string | null;
+  clock_out_by: string | null;
   duration_secs?: number;
   project_status?: string;
 }

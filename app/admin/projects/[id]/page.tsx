@@ -8,7 +8,6 @@ import {
   fmtTimeWIB,
   fmtDateTimeWIB,
   fmtDuration,
-  toWIBInputValue,
 } from "@/lib/format";
 import type { Project, WorkSession } from "@/lib/types";
 import {
@@ -20,12 +19,13 @@ import {
   inputCls,
 } from "@/components/ui";
 import { Pager } from "@/components/pager";
+import { SubmitButton } from "@/components/submit-button";
 import {
   updateProject,
   setArchived,
-  correctSession,
   removeSession,
 } from "@/app/admin/projects/actions";
+import { CorrectionForm } from "@/components/correction-form";
 
 // Halaman dinamis per request (data sesi login) → navigasi boleh blocking.
 export const instant = false;
@@ -85,9 +85,12 @@ export default async function ProjectDetailPage({
 
   const { data: sessions, count: sessionTotal } = await supabase
     .from("work_sessions")
-    .select("id, project_id, clock_in, clock_out, duration", {
-      count: "exact",
-    })
+    .select(
+      "id, project_id, clock_in, clock_out, duration, clock_in_by, clock_out_by",
+      {
+        count: "exact",
+      },
+    )
     .eq("project_id", id)
     .order("clock_in", { ascending: false })
     .range((spage - 1) * PER_SESSION, spage * PER_SESSION - 1);
@@ -241,9 +244,12 @@ export default async function ProjectDetailPage({
                 name="archived"
                 value={p.is_archived ? "false" : "true"}
               />
-              <button type="submit" className={`${BTN} w-full bg-paper hover:bg-lavender`}>
+              <SubmitButton
+                pendingChildren="Menyimpan…"
+                className={`${BTN} w-full bg-paper hover:bg-lavender`}
+              >
                 {p.is_archived ? "Unarchive Project" : "Archive Project"}
-              </button>
+              </SubmitButton>
             </form>
             {p.is_archived && (
               <p role="note" className="mt-2 text-xs font-bold text-danger">
@@ -278,12 +284,12 @@ export default async function ProjectDetailPage({
                 <option value="Trial">Trial</option>
               </select>
             </Field>
-            <button
-              type="submit"
+            <SubmitButton
+              pendingChildren="Menyimpan…"
               className={`${BTN} lift w-full bg-ink text-white`}
             >
               Simpan Perubahan
-            </button>
+            </SubmitButton>
           </form>
         </Window>
       </div>
@@ -306,6 +312,9 @@ export default async function ProjectDetailPage({
                 </th>
                 <th scope="col" className="px-4 py-2.5 font-bold">
                   Clock Out
+                </th>
+                <th scope="col" className="px-4 py-2.5 font-bold">
+                  Operator
                 </th>
                 <th scope="col" className="px-4 py-2.5 text-right font-bold">
                   Durasi
@@ -351,7 +360,15 @@ export default async function ProjectDetailPage({
                         <span className="font-bold text-success">● aktif</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right font-display font-bold text-bubblegumink tabular-nums">
+                    <td className="max-w-40 px-4 py-3 text-sm">
+                    <span className="block truncate font-bold">
+                      {s.clock_in_by ?? "—"}
+                    </span>
+                    <span className="block truncate text-xs text-inksoft">
+                      → {s.clock_out_by ?? "…"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-display font-bold text-bubblegumink tabular-nums">
                       {secs === null ? "—" : fmtDuration(secs)}
                     </td>
                     <td className="px-4 py-3">
@@ -359,57 +376,16 @@ export default async function ProjectDetailPage({
                         <summary className="mark-link inline cursor-pointer rounded font-mono text-sm font-bold tracking-wider uppercase">
                           Edit
                         </summary>
-                        <form
-                          action={correctSession}
-                          className="mt-2 min-w-60 space-y-2 rounded border-2 border-ink bg-canvas p-3"
-                        >
-                          <input type="hidden" name="session_id" value={s.id} />
-                          <input type="hidden" name="project_id" value={p.id} />
-                          <label className="block font-mono text-[11px] font-bold uppercase">
-                            Clock In (WIB)
-                            <input
-                              type="datetime-local"
-                              name="clock_in"
-                              required
-                              defaultValue={toWIBInputValue(s.clock_in)}
-                              className="mt-1 w-full rounded border-2 border-ink bg-paper px-2 py-1.5"
-                            />
-                          </label>
-                          <label className="block font-mono text-[11px] font-bold uppercase">
-                            Clock Out (WIB, kosong = aktif)
-                            <input
-                              type="datetime-local"
-                              name="clock_out"
-                              defaultValue={
-                                s.clock_out ? toWIBInputValue(s.clock_out) : ""
-                              }
-                              className="mt-1 w-full rounded border-2 border-ink bg-paper px-2 py-1.5"
-                            />
-                          </label>
-                          <input
-                            type="text"
-                            name="reason"
-                            autoComplete="off"
-                            placeholder="Alasan, mis. lupa clock out…"
-                            aria-label="Alasan koreksi"
-                            className="w-full rounded border-2 border-ink bg-paper px-2 py-1.5 text-xs placeholder:text-inkfaint"
-                          />
-                          <button
-                            type="submit"
-                            className="press lift min-h-9 w-full cursor-pointer rounded border-2 border-ink bg-ink px-3 py-1.5 font-mono text-xs font-bold uppercase text-white shadow-brutal-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-                          >
-                            Simpan koreksi
-                          </button>
-                        </form>
+                        <CorrectionForm s={s} projectId={p.id} />
                         <form action={removeSession} className="mt-2">
                           <input type="hidden" name="session_id" value={s.id} />
                           <input type="hidden" name="project_id" value={p.id} />
-                          <button
-                            type="submit"
-                            className="press min-h-9 w-full cursor-pointer rounded border-2 border-ink bg-paper px-3 py-1.5 font-mono text-xs font-bold uppercase text-danger shadow-brutal-sm hover:bg-dangersoft/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+                          <SubmitButton
+                            pendingChildren="Menghapus…"
+                            className="press min-h-9 w-full rounded border-2 border-ink bg-paper px-3 py-1.5 font-mono text-xs font-bold uppercase text-danger shadow-brutal-sm hover:bg-dangersoft/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
                           >
                             Hapus record
-                          </button>
+                          </SubmitButton>
                         </form>
                       </details>
                     </td>
@@ -417,7 +393,7 @@ export default async function ProjectDetailPage({
                 );
               })}
               {list.length === 0 && (
-                <EmptyRow colSpan={5}>
+                <EmptyRow colSpan={6}>
                   Belum ada record. Scan QR untuk Clock In pertama.
                 </EmptyRow>
               )}

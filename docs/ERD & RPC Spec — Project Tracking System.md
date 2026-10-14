@@ -2,6 +2,7 @@
 
 **Version:** 1.2 (07 Oct 2026)
 **Changelog v1.2:** `project_date` dihapus (migration 0002). Tanggal ikut tiap record via `clock_in`. Dashboard = rekap record terbaru. `get_scan_project` tanpa `project_date`.
+**Changelog v1.4:** nama operator per event (migration 0003: `clock_in_by`, `clock_out_by` + audit). `clock_toggle` wajib nama; `correct_session` bisa koreksi nama.
 **PRD:** `Product Requirements Document — Project Tracking & QR Clock In-Out System.md` v1.1
 **Stack:** Next.js + TypeScript, Supabase (Postgres + Auth + RLS + RPC), Vercel
 **Zona waktu:** simpan `timestamptz` UTC, tampil Asia/Jakarta (WIB) di UI.
@@ -66,6 +67,8 @@ Tidak ada kolom `status`. Status di-derive (lihat §6).
 | project_id | uuid → projects | NOT NULL, ON DELETE RESTRICT | RESTRICT karena tidak ada hard delete project |
 | clock_in | timestamptz | NOT NULL DEFAULT now() | UTC |
 | clock_out | timestamptz | nullable | NULL = active session |
+| clock_in_by | text | nullable (wajib via RPC v1.4+) | Nama yg Clock In, maks 100 |
+| clock_out_by | text | nullable (wajib via RPC v1.4+ saat OUT) | Nama yg Clock Out, maks 100 |
 | duration | interval | GENERATED ALWAYS AS (`clock_out` - `clock_in`) STORED | NULL saat aktif |
 | created_at | timestamptz | NOT NULL DEFAULT now() | UTC |
 | updated_at | timestamptz | NOT NULL DEFAULT now() | UTC, via trigger |
@@ -95,6 +98,10 @@ ALTER TABLE work_sessions
 | new_clock_in | timestamptz | nullable | Snapshot |
 | old_clock_out | timestamptz | nullable | Snapshot |
 | new_clock_out | timestamptz | nullable | Snapshot |
+| old_clock_in_by | text | nullable | Snapshot nama |
+| new_clock_in_by | text | nullable | Snapshot nama |
+| old_clock_out_by | text | nullable | Snapshot nama |
+| new_clock_out_by | text | nullable | Snapshot nama |
 | reason | text | nullable | Alasan (optional di UI, wajib dianjurkan) |
 | created_at | timestamptz | NOT NULL DEFAULT now() | Kapan koreksi |
 
@@ -116,19 +123,21 @@ View disediakan di migration (`v_project_status` + `v_project_totals`). Frontend
 
 ## 4. RPC `clock_toggle` (single writer, atomic)
 
-**Signature:** `clock_toggle(p_qr_token uuid) RETURNS jsonb`
+**Signature (v1.4):** `clock_toggle(p_qr_token uuid, p_operator_name text) RETURNS jsonb`
 **Security:** `SECURITY DEFINER`, `GRANT EXECUTE TO anon, authenticated`.
 **Frontend tidak boleh** insert/update `work_sessions` langsung (dicabut via RLS).
 
 Flow dalam 1 transaksi:
 
 ```text
+0. Validasi nama (trim, wajib isi, maks 100 char)
+   → kosong → RAISE 'OPERATOR_REQUIRED'
 1. SELECT project ... FOR UPDATE (lock baris project)
    → tidak ketemu → RAISE 'PROJECT_NOT_FOUND'
    → is_archived  → RAISE 'PROJECT_ARCHIVED'
 2. SELECT active session WHERE project_id + clock_out IS NULL FOR UPDATE
-3a. Tidak ada → INSERT clock_in=now() → RETURN { action: 'IN', ... }
-3b. Ada      → UPDATE clock_out=now() → RETURN { action: 'OUT', duration, ... }
+3a. Tidak ada → INSERT clock_in=now(), clock_in_by=nama → RETURN { action: 'IN', ... }
+3b. Ada      → UPDATE clock_out=now(), clock_out_by=nama → RETURN { action: 'OUT', duration, ... }
    (unique index menjamin tidak ada 2 aktif lolos race)
 4. Frontend disable tombol setelah OK + tampilkan hasil RPC (bukan state lokal).
 ```
