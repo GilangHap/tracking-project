@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
 import type { ScanInfo } from "@/lib/types";
 import { Window } from "@/components/ui";
 import ScanClient from "@/app/scan/[qr_token]/scan-client";
@@ -26,13 +26,15 @@ export default async function ScanPage({
   const { qr_token } = await params;
   if (!UUID_RE.test(qr_token)) notFound();
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_scan_project", {
-    p_qr_token: qr_token,
-  });
-
-  if (error) {
-    const code = error.message ?? "";
+  let info: ScanInfo;
+  try {
+    const { rows } = await db.query<{ out: ScanInfo }>(
+      "select public.get_scan_project($1) as out",
+      [qr_token],
+    );
+    info = rows[0].out;
+  } catch (e) {
+    const code = e instanceof Error ? e.message : "";
     if (code.includes("PROJECT_NOT_FOUND")) {
       return (
         <Shell>
@@ -66,7 +68,6 @@ export default async function ScanPage({
     );
   }
 
-  const info = data as ScanInfo;
   if (info.is_archived) {
     return (
       <Shell>

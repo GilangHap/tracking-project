@@ -2,16 +2,20 @@
 
 ## Project Tracking & QR Clock In/Out System
 
-**Version:** 1.4  
-**Status:** Revised (08 Oct 2026)  
+**Version:** 1.7  
+**Status:** Revised (15 Oct 2026)  
+**Changelog v1.7:** Anti stale-scan: `clock_toggle` menerima niat tampilan (compare-and-swap); klik di layar basi ditolak `STALE_STATE` + tombol muat ulang, bukan dibalik diam-diam. Nama operator diingat per perangkat.
+**Changelog v1.6:** Hapus permanen project (modal + wajib ketik ulang nama, verifikasi server, hapus record+audit dalam 1 transaksi). Process baru: Design. Mengamandemen keputusan hapus-vs-archive v1.1.
+**Changelog v1.5:** Migrasi platform ke self-hosted: Supabase/Vercel → PostgreSQL 16 + Auth.js v5 + Docker Compose + Caddy di VPS (`tracking.langhap.dev`). RPC plpgsql dipertahankan; RLS diganti enforcement aplikasi; backup otomatis harian.
 **Changelog v1.4:** Nama operator wajib sebelum Clock In maupun Clock Out, tercatat per event (yang IN dan yang OUT boleh beda orang). Tampil di scan/detail/dashboard/rekap/export; bisa dikoreksi admin + teraudit.
 **Changelog v1.3:** Halaman Rekap Record global (/admin/records: search + filter + pagination + Export CSV mengikuti filter). Halaman scanner publik (/scan: kamera dalam website + tempel manual, auto-kembali setelah sukses). Halaman scan tampilkan info Clock In terakhir sebagai anti-fraud.
 **Changelog v1.2:** Tanggal dihapus dari project — create cukup nama + process. Tiap record session membawa tanggal/waktunya sendiri. Dashboard menampilkan rekap record terbaru lintas project.
 **Changelog v1.1:** (1) Status model dikunci: Not Started / Ongoing / Completed (idle) / Archived. (2) Admin koreksi session naik ke MVP. (3) Concurrency serial + anonim: session milik project. (4) Integritas via RPC atomic + partial unique index + UTC. (5) Delete = Archive saja. (6) QR fraud diterima sebagai risiko v1.  
 **Platform:** Web Application  
 **Frontend:** Next.js + TypeScript  
-**Database & Backend Services:** Supabase  
-**Deployment:** Vercel  
+**Database:** PostgreSQL 16 self-hosted (Docker)  
+**Auth:** Auth.js v5 (credentials, JWT session)  
+**Deployment:** Docker Compose + Caddy di VPS  
 
 ---
 
@@ -54,7 +58,7 @@ Sistem dikembangkan dengan tujuan:
 6. Menyediakan dashboard admin untuk memantau project.
 7. Mengurangi kesalahan pencatatan waktu secara manual.
 8. Menyediakan sistem yang responsif dan nyaman digunakan melalui smartphone.
-9. Menggunakan arsitektur serverless dengan Next.js, Supabase, dan Vercel.
+9. Menggunakan arsitektur self-hosted dengan Next.js, PostgreSQL, dan Docker di VPS.
 
 ---
 
@@ -68,7 +72,8 @@ Fitur yang termasuk dalam versi awal sistem:
 - Dashboard admin.
 - Create project.
 - Edit project.
-- Archive project (nonaktif, QR mati, data awet). Tidak ada hard delete di v1.
+- Archive project (nonaktif, QR mati, data awet).
+- Hapus permanen project (v1.6: modal + ketik ulang nama, record ikut musnah, tidak bisa batal).
 - Project listing.
 - Project detail.
 - Project status (Not Started / Ongoing / Completed / Archived — lihat Section 14).
@@ -80,15 +85,15 @@ Fitur yang termasuk dalam versi awal sistem:
 - Clock Out.
 - Confirmation sebelum Clock In/Out.
 - Multiple Clock In/Out pada project yang sama (serial, max 1 active session).
-- Clock toggle atomic via Supabase RPC + transaction (anti double-tap / double-scan).
+- Clock toggle atomic via fungsi DB + transaction (anti double-tap / double-scan).
 - Perhitungan durasi session di DB (generated column, sumber UTC).
 - Perhitungan total durasi project.
 - Riwayat session project.
 - Admin koreksi session: edit jam Clock In/Out + hapus session salah + recalculate otomatis + audit log minimal.
 - Responsive mobile interface.
-- Database menggunakan Supabase PostgreSQL (timestamptz UTC).
-- Authentication menggunakan Supabase Auth.
-- Deployment menggunakan Vercel.
+- Database menggunakan PostgreSQL self-hosted (timestamptz UTC).
+- Authentication menggunakan Auth.js v5 (credentials + JWT).
+- Deployment menggunakan Docker Compose + Caddy di VPS.
 
 ## 4.2 Out of Scope
 
@@ -106,7 +111,6 @@ Fitur berikut belum menjadi bagian dari versi awal:
 - Integrasi ERP.
 - Notifikasi WhatsApp.
 - Mobile application native Android/iOS.
-- Hard delete project (diganti Archive — lihat Section 14).
 
 ---
 
@@ -174,7 +178,7 @@ Data minimum project (v1.2 — tanpa tanggal):
 | Field | Required | Keterangan |
 |---|---|---|
 | Nama Project | Ya | Nama/item project |
-| Process | Ya | Machining, Assembly, atau Trial |
+| Process | Ya | Machining, Assembly, Trial, atau Design |
 
 Tanggal dan jam kerja tidak disimpan di project, melainkan di tiap record session (`clock_in` / `clock_out`). Satu project dapat dikerjakan berhari-hari.
 
@@ -189,6 +193,7 @@ Sistem menyediakan pilihan process:
 - Machining
 - Assembly
 - Trial
+- Design
 
 Process disimpan sebagai bagian dari informasi project.
 
@@ -678,7 +683,7 @@ Aturan LOCKED v1.1:
 
 ## Authentication
 
-Admin menggunakan Supabase Authentication.
+Admin menggunakan Auth.js credentials (email + password, session JWT).
 
 ## Authorization
 
@@ -835,25 +840,24 @@ Next.js digunakan sebagai framework utama untuk:
 
 ## Backend
 
-Supabase digunakan untuk:
+PostgreSQL self-hosted digunakan untuk:
 
-- PostgreSQL Database.
-- Authentication.
-- Row Level Security.
-- Backend services.
+- Database + fungsi atomic (clock_toggle, correct/delete_session).
+- Otorisasi ditegakkan di lapisan aplikasi (Next server actions + proxy),
+  bukan RLS database.
 
 ## Deployment
 
 Aplikasi di-deploy menggunakan:
 
 ```text
-Vercel
+Docker Compose + Caddy (TLS otomatis) di VPS
 ```
 
 Database:
 
 ```text
-Supabase
+PostgreSQL 16 (volume pgdata + backup harian otomatis)
 ```
 
 Arsitektur:
@@ -868,13 +872,14 @@ Arsitektur:
             ▼                 ▼
        Next.js App       QR Scan Page
             │                 │
-            └────────┬────────┘
-                     │
-                  Supabase
-                     │
-          ┌──────────┼──────────┐
-          │          │          │
-       Auth       Database     RLS
+             └────────┬────────┘
+                      │
+                PostgreSQL 16
+                      │
+           ┌──────────┼──────────┐
+           │          │          │
+      Auth.js      Database    Fungsi
+      (JWT)      (tanpa RLS)   atomic
                      │
              ┌───────┴───────┐
              │               │
@@ -975,12 +980,12 @@ Database query harus dibuat efisien sehingga proses validasi session tidak membu
 
 ## Availability
 
-Sistem dirancang dengan layanan cloud:
+Sistem berjalan di VPS sendiri (Docker Compose):
 
-- Vercel.
-- Supabase.
+- Caddy (TLS otomatis + reverse proxy).
+- PostgreSQL dengan volume persisten + backup harian otomatis.
 
-Tidak membutuhkan server aplikasi yang dikelola secara manual.
+Tidak bergantung pada layanan serverless pihak ketiga.
 
 ## Usability
 
@@ -1046,7 +1051,8 @@ Versi MVP (v1.1 locked) dianggap berhasil apabila sistem telah mampu:
 - [x] Melihat daftar project + filter status (termasuk Archived).
 - [x] Melihat detail project.
 - [x] Melihat history session.
-- [x] Archive / unarchive project (pengganti delete).
+- [x] Archive / unarchive project.
+- [x] Hapus permanen project (verifikasi ketik nama).
 - [x] Koreksi session: edit jam + hapus session + audit log minimal.
 - [x] Rekap semua record lintas project + search + pagination.
 - [x] Export CSV mengikuti filter (maks 10.000 baris, anti formula-injection).
@@ -1068,11 +1074,11 @@ Versi MVP (v1.1 locked) dianggap berhasil apabila sistem telah mampu:
 
 - [x] Next.js.
 - [x] TypeScript.
-- [x] Supabase.
-- [x] Supabase Auth + RLS.
+- [x] PostgreSQL self-hosted.
+- [x] Auth.js + pg (tanpa RLS, enforcement aplikasi).
 - [x] PostgreSQL + RPC `clock_toggle` + partial unique index.
 - [x] Responsive UI.
-- [x] Vercel deployment.
+- [x] Docker Compose + Caddy deployment di VPS.
 
 ---
 
@@ -1111,7 +1117,7 @@ Sistem dianggap berhasil apabila:
 7. Total durasi project dapat dihitung dengan benar.
 8. Seluruh riwayat pengerjaan dapat dilihat oleh admin.
 9. Sistem dapat digunakan dengan nyaman melalui smartphone.
-10. Data Clock In/Out tersimpan secara konsisten di Supabase.
+10. Data Clock In/Out tersimpan secara konsisten di PostgreSQL.
 
 ---
 
@@ -1119,12 +1125,12 @@ Sistem dianggap berhasil apabila:
 
 Semua keputusan di bawah SUDAH dikunci dan tercermin di PRD. Jangan dibuka lagi saat ERD kecuali ada alasan bisnis baru:
 
-1. ~~Satu project satu atau beberapa process?~~ → LOCKED: satu project = satu process (Machining | Assembly | Trial).
+1. ~~Satu project satu atau beberapa process?~~ → LOCKED: satu project = satu process (Machining | Assembly | Trial | Design).
 2. ~~Operator perlu identitas/account?~~ → LOCKED: tidak. Anonim, session milik project.
 3. ~~Satu project dikerjakan paralel?~~ → LOCKED: tidak. Serial, max 1 active session (partial unique index + RPC).
 4. ~~Mekanisme Completed?~~ → LOCKED: otomatis/derived. Completed = idle (tidak ada active session tapi ≥1 session). Scan berikutnya = Clock In baru.
 5. ~~Admin koreksi Clock In/Out?~~ → LOCKED: ya, masuk MVP + audit minimal. Tidak ada auto-close; session menggantung dibiarkan sampai scan/koreksi.
-6. ~~Hapus atau archive?~~ → LOCKED: archive saja. Tidak ada hard delete. QR archived mati total.
+6. ~~Hapus atau archive?~~ → LOCKED v1.1: archive saja. DIAMANDEMEN v1.6: hapus permanen tersedia (ketik ulang nama + transaksi), archive tetap default aman.
 7. Export laporan? → Future (v2).
 8. GPS/geolocation? → Future. Risiko fraud diterima di v1.
 9. Audit log? → Minimal untuk koreksi masuk MVP; full audit = Future.
@@ -1132,8 +1138,8 @@ Semua keputusan di bawah SUDAH dikunci dan tercermin di PRD. Jangan dibuka lagi 
 
 # 30. Summary
 
-Project Tracking & QR Clock In/Out System merupakan aplikasi web berbasis Next.js dan Supabase yang memungkinkan admin mengelola project serta menghasilkan QR Code unik untuk setiap project.
+Project Tracking & QR Clock In/Out System merupakan aplikasi web berbasis Next.js dan PostgreSQL self-hosted yang memungkinkan admin mengelola project serta menghasilkan QR Code unik untuk setiap project.
 
 QR Code digunakan oleh operator anonim melalui perangkat mobile untuk melakukan Clock In dan Clock Out. Sistem menentukan jenis aktivitas berdasarkan keberadaan active work session via RPC atomic `clock_toggle`: jika tidak terdapat session aktif, scan menjadi Clock In; jika ada, menjadi Clock Out. Satu project serial (max 1 active session) dan dapat memiliki banyak session sepanjang hidupnya.
 
-Status di-derive (Not Started / Ongoing / Completed-idle / Archived). Completed bukan lock final; Archived mematikan QR. Duration dihitung DB dari timestamp UTC dan ditampilkan WIB. Admin dapat mengoreksi session yang salah dengan audit minimal. Arsitektur: Next.js + Supabase (Auth/RLS/PostgreSQL) + Vercel, mobile-first, server-side validation.
+Status di-derive (Not Started / Ongoing / Completed-idle / Archived). Completed bukan lock final; Archived mematikan QR. Duration dihitung DB dari timestamp UTC dan ditampilkan WIB. Admin dapat mengoreksi session yang salah dengan audit minimal. Arsitektur: Next.js + PostgreSQL self-hosted + Auth.js + Docker/Caddy, mobile-first, server-side validation.

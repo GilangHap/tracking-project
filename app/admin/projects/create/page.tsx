@@ -41,6 +41,7 @@ export default async function CreateProjectPage() {
                 <option value="Machining">Machining</option>
                 <option value="Assembly">Assembly</option>
                 <option value="Trial">Trial</option>
+                <option value="Design">Design</option>
               </select>
             </Field>
           </div>

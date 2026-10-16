@@ -76,7 +76,7 @@ export default function Home() {
           <div className="grid gap-6 p-5 md:grid-cols-2 md:p-8">
             <div>
               <span className="inline-block rounded border-2 border-ink bg-mint px-2 py-0.5 font-mono text-[11px] font-bold tracking-wider uppercase">
-                Machining · Assembly · Trial
+                Machining · Assembly · Trial · Design
               </span>
               <h1 className="mt-3 font-display text-4xl font-bold text-pretty uppercase md:text-5xl">
                 Catat jam kerja dengan satu scan.

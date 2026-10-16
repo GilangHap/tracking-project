@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { auth } from "@/lib/auth";
 import { TabBar } from "@/components/tabbar";
 import { LogoutButton } from "@/components/logout-button";
 
@@ -23,19 +23,13 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   await connection();
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const session = await auth();
+  const email = session?.user?.email ?? null;
+  const role = (session?.user as unknown as { role?: string } | undefined)
+    ?.role;
+  if (!session?.user) redirect("/login");
 
-  const { data: admin } = await supabase
-    .from("admins")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!admin) {
+  if (role !== "admin") {
     return (
       <div className="bg-grid flex min-h-screen items-center justify-center bg-canvas px-4">
         <main className="w-full max-w-sm border-2 border-ink bg-paper p-6 text-center shadow-brutal">
@@ -43,8 +37,8 @@ export default async function AdminLayout({
             Akses ditolak
           </h1>
           <p className="mt-2 text-sm text-inksoft">
-            Akun {user.email} bukan admin. Minta admin mendaftarkan akun ini
-            ke tabel admins.
+            Akun {email} bukan admin. Minta admin menaikkan peran akun ini
+            di tabel users.
           </p>
           <div className="mt-6">
             <LogoutButton full />

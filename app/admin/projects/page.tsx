@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { connection } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
 import { escapeLike } from "@/lib/search";
 import { EmptyRow, SectionBar, StatusBadge } from "@/components/ui";
 
 // Halaman dinamis per request (data sesi login) → navigasi boleh blocking.
 export const instant = false;
 
-const PROCESSES = ["Machining", "Assembly", "Trial"] as const;
+const PROCESSES = ["Machining", "Assembly", "Trial", "Design"] as const;
 const STATUSES = ["Not Started", "Ongoing", "Completed", "Archived"] as const;
 
 const CONTROL_CLS =
@@ -30,32 +30,43 @@ export default async function ProjectsPage({
   const showArchived = sp.showArchived === "1";
 
   // Tanggal project dihapus (v1.2): urut berdasar waktu dibuat.
-  // Wajib request-time: Supabase JS memanggil Date.now() yang dilarang prerender.
   await connection();
-  const supabase = await createClient();
-  let query = supabase
-    .from("projects")
-    .select("id, name, process, is_archived")
-    .order("created_at", { ascending: false });
-  if (!showArchived) query = query.eq("is_archived", false);
-  if (processFilter) query = query.eq("process", processFilter);
-  if (q) query = query.ilike("name", `%${escapeLike(q)}%`);
-
-  const { data: projects } = await query;
-  const list = projects ?? [];
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  if (!showArchived) {
+    params.push(false);
+    conds.push(`is_archived = $${params.length}`);
+  }
+  if (processFilter) {
+    params.push(processFilter);
+    conds.push(`process = $${params.length}::project_process`);
+  }
+  if (q) {
+    params.push(`%${escapeLike(q)}%`);
+    conds.push(`name ilike $${params.length}`);
+  }
+  const where = conds.length > 0 ? `where ${conds.join(" and ")}` : "";
+  const { rows: projects } = await db.query<{
+    id: string;
+    name: string;
+    process: string;
+    is_archived: boolean;
+  }>(
+    `select id, name, process, is_archived from public.projects ${where} order by created_at desc`,
+    params,
+  );
+  const list = projects;
   const ids = list.map((p) => p.id);
 
   const statusById = new Map<string, string>();
   if (ids.length > 0) {
-    const { data: statuses } = await supabase
-      .from("v_project_status")
-      .select("project_id, status")
-      .in("project_id", ids);
-    for (const s of (statuses ?? []) as {
+    const { rows: statuses } = await db.query<{
       project_id: string;
       status: string;
-    }[])
-      statusById.set(s.project_id, s.status);
+    }>("select project_id, status from public.v_project_status where project_id = any($1)", [
+      ids,
+    ]);
+    for (const s of statuses) statusById.set(s.project_id, s.status);
   }
 
   const filtered = statusFilter

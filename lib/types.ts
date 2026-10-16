@@ -1,4 +1,4 @@
-export type Process = "Machining" | "Assembly" | "Trial";
+export type Process = "Machining" | "Assembly" | "Trial" | "Design";
 export type ProjectStatus = "Not Started" | "Ongoing" | "Completed" | "Archived";
 
 export interface Project {
@@ -8,6 +8,7 @@ export interface Project {
   qr_token: string;
   is_archived: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface WorkSession {

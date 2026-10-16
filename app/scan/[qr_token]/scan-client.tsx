@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { clockAction } from "@/app/scan/actions";
 import { fmtDateWIB, fmtTimeWIB, fmtDuration } from "@/lib/format";
 import type { ClockResult, ScanInfo } from "@/lib/types";
 import { WinControls } from "@/components/ui";
@@ -19,12 +19,30 @@ const FOCUS =
  */
 export default function ScanClient({ info }: { info: ScanInfo }) {
   const router = useRouter();
+  const tokenKey = `scan-operator-name`;
   const [phase, setPhase] = useState<Phase>("ready");
   const [result, setResult] = useState<ClockResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState("");
+  const [stale, setStale] = useState(false);
+  // Nama diingat per perangkat agar tidak hilang saat layar me-remount.
+  const [name, setName] = useState(() => {
+    try {
+      return window.localStorage.getItem(tokenKey) ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [nameError, setNameError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(4);
+
+  function onNameChange(v: string) {
+    setName(v);
+    try {
+      window.localStorage.setItem(tokenKey, v);
+    } catch {
+      // abaikan — tanpanya pun flow tetap jalan
+    }
+  }
   // Kunci anti double-tap: re-render bisa kalah cepat dari klik kedua.
   const submittingRef = useRef(false);
   // Sukses → hitung mundur dari 4, lalu kembali otomatis ke scanner.
@@ -80,13 +98,8 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
       // Token diambil dari URL /scan/{token} saat submit.
       const seg = window.location.pathname.split("/").filter(Boolean);
       const token = seg[seg.length - 1] ?? "";
-      const supabase = createClient();
-      const { data, error } = await supabase.rpc("clock_toggle", {
-        p_qr_token: token,
-        p_operator_name: name.trim(),
-      });
-      if (error) throw new Error(error.message);
-      setResult(data as ClockResult);
+      const data = await clockAction(token, name.trim(), info.next_action);
+      setResult(data);
       setPhase("done");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "UNKNOWN";
@@ -104,6 +117,12 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
         submittingRef.current = false;
         setPhase("ready");
         return;
+      } else if (msg.includes("STALE_STATE")) {
+        // Layar basi: state berubah setelah dibuka (HP lain/klik ganda).
+        setStale(true);
+        setError(
+          "Status berubah — seseorang sudah Clock In/Out lebih dulu. Muat ulang untuk status terbaru.",
+        );
       } else {
         setError("Gagal menyimpan. Periksa sinyal lalu coba lagi.");
       }
@@ -175,7 +194,7 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
               <input
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => onNameChange(e.target.value)}
                 maxLength={100}
                 required
                 autoComplete="off"
@@ -278,12 +297,21 @@ export default function ScanClient({ info }: { info: ScanInfo }) {
             >
               ✕ {error}
             </p>
-            <button
-              onClick={() => setPhase("ready")}
-              className={`press mt-3 min-h-14 w-full cursor-pointer rounded border-2 border-ink bg-paper px-5 py-3 font-mono font-bold uppercase shadow-brutal-sm ${FOCUS}`}
-            >
-              Coba Lagi
-            </button>
+            {stale ? (
+              <button
+                onClick={() => router.refresh()}
+                className={`press lift mt-3 min-h-14 w-full cursor-pointer rounded border-2 border-ink bg-butter px-5 py-3 font-mono font-bold uppercase shadow-brutal-sm ${FOCUS}`}
+              >
+                ⟳ Muat Ulang Status
+              </button>
+            ) : (
+              <button
+                onClick={() => setPhase("ready")}
+                className={`press mt-3 min-h-14 w-full cursor-pointer rounded border-2 border-ink bg-paper px-5 py-3 font-mono font-bold uppercase shadow-brutal-sm ${FOCUS}`}
+              >
+                Coba Lagi
+              </button>
+            )}
           </div>
         )}
 

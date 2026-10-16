@@ -1,0 +1,5 @@
+# Ganti dengan domain VPS. Caddy menerbitkan TLS otomatis (Let's Encrypt).
+# Syarat: DNS A record domain → IP publik VPS, port 80/443 terbuka.
+tracking.langhap.dev {
+	reverse_proxy app:3000
+}

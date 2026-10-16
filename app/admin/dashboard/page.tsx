@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { connection } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
 import { fmtDuration, fmtDateWIB, fmtTimeWIB } from "@/lib/format";
 import type { Project } from "@/lib/types";
 import { EmptyRow, SectionBar, Stat } from "@/components/ui";
@@ -38,34 +38,30 @@ function recordSecs(clockIn: string, clockOut: string | null): number | null {
 }
 
 export default async function DashboardPage() {
-  // Wajib request-time: Supabase JS memanggil Date.now() yang dilarang prerender.
+  // Wajib request-time: halaman memakai data sesi + DB per request.
   await connection();
-  const supabase = await createClient();
 
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("id, name, process")
-    .eq("is_archived", false)
-    .order("created_at", { ascending: false });
-
-  const list = (projects ?? []) as Pick<Project, "id" | "name" | "process">[];
+  const { rows: projects } = await db.query<
+    Pick<Project, "id" | "name" | "process">
+  >(
+    "select id, name, process from public.projects where is_archived = false order by created_at desc",
+  );
+  const list = projects;
   const ids = list.map((p) => p.id);
 
   const statusById = new Map<string, string>();
   const totalById = new Map<string, number>();
   if (ids.length > 0) {
-    const { data: statuses } = await supabase
-      .from("v_project_status")
-      .select("project_id, status")
-      .in("project_id", ids);
-    const { data: totals } = await supabase
-      .from("v_project_totals")
-      .select("project_id, total_secs")
-      .in("project_id", ids);
-    for (const s of (statuses ?? []) as StatusRow[])
-      statusById.set(s.project_id, s.status);
-    for (const t of (totals ?? []) as TotalRow[])
-      totalById.set(t.project_id, Number(t.total_secs));
+    const { rows: statuses } = await db.query<StatusRow>(
+      "select project_id, status from public.v_project_status where project_id = any($1)",
+      [ids],
+    );
+    const { rows: totals } = await db.query<TotalRow>(
+      "select project_id, total_secs from public.v_project_totals where project_id = any($1)",
+      [ids],
+    );
+    for (const s of statuses) statusById.set(s.project_id, s.status);
+    for (const t of totals) totalById.set(t.project_id, Number(t.total_secs));
   }
 
   const ongoing = list.filter((p) => statusById.get(p.id) === "Ongoing").length;
@@ -74,15 +70,36 @@ export default async function DashboardPage() {
   ).length;
   const totalSecs = [...totalById.values()].reduce((a, b) => a + b, 0);
 
-  const { data: recent } = await supabase
-    .from("work_sessions")
-    .select(
-      "id, clock_in, clock_out, clock_in_by, clock_out_by, projects!inner(id, name, process)",
-    )
-    .eq("projects.is_archived", false)
-    .order("clock_in", { ascending: false })
-    .limit(15);
-  const records = (recent ?? []) as unknown as RecentRecord[];
+  const { rows: recent } = await db.query<{
+    id: string;
+    clock_in: string;
+    clock_out: string | null;
+    clock_in_by: string | null;
+    clock_out_by: string | null;
+    project_id: string;
+    project_name: string;
+    project_process: string;
+  }>(
+    `select s.id, s.clock_in, s.clock_out, s.clock_in_by, s.clock_out_by,
+            p.id as project_id, p.name as project_name, p.process as project_process
+     from public.work_sessions s
+     join public.projects p on p.id = s.project_id
+     where p.is_archived = false
+     order by s.clock_in desc
+     limit 15`,
+  );
+  const records: RecentRecord[] = recent.map((r) => ({
+    id: r.id,
+    clock_in: r.clock_in,
+    clock_out: r.clock_out,
+    clock_in_by: r.clock_in_by,
+    clock_out_by: r.clock_out_by,
+    projects: {
+      id: r.project_id,
+      name: r.project_name,
+      process: r.project_process,
+    },
+  }));
 
   return (
     <div>

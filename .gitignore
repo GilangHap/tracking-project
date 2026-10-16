@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local-only compose override (membuka port DB ke laptop)
+docker-compose.override.yml
 
 # vercel
 .vercel

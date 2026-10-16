@@ -4,7 +4,8 @@
 **Changelog v1.2:** `project_date` dihapus (migration 0002). Tanggal ikut tiap record via `clock_in`. Dashboard = rekap record terbaru. `get_scan_project` tanpa `project_date`.
 **Changelog v1.4:** nama operator per event (migration 0003: `clock_in_by`, `clock_out_by` + audit). `clock_toggle` wajib nama; `correct_session` bisa koreksi nama.
 **PRD:** `Product Requirements Document — Project Tracking & QR Clock In-Out System.md` v1.1
-**Stack:** Next.js + TypeScript, Supabase (Postgres + Auth + RLS + RPC), Vercel
+**Stack:** Next.js + TypeScript, PostgreSQL 16 self-hosted + Auth.js, Docker + Caddy
+**Catatan v1.5:** `auth.users`/`auth.uid()`/role anon era Supabase sudah tidak ada. Otorisasi di Next (Auth.js + proxy + server actions); audit admin via setting sesi `app.admin_id`. Skema otoritatif: `db/init/001_schema.sql`.
 **Zona waktu:** simpan `timestamptz` UTC, tampil Asia/Jakarta (WIB) di UI.
 
 ---
@@ -17,7 +18,7 @@
 4. Completed = idle, bukan lock. Scan berikutnya = Clock In baru.
 5. Archive ganti hard delete. QR archived mati total.
 6. Koreksi admin MASUK MVP + audit minimal. Tidak ada auto-close.
-7. Single writer: RPC `clock_toggle(qr_token)` atomic. Frontend tidak boleh insert/update langsung.
+7. Single writer: fungsi `clock_toggle(qr_token, operator)` atomic. Frontend tidak boleh insert/update langsung.
 8. Fraud QR (foto URL, scan dari mana saja) = accepted risk v1.
 
 ---
@@ -25,7 +26,7 @@
 ## 2. ERD
 
 ```text
-auth.users (Supabase Auth)
+users (Auth.js credentials)
    │ 1
    │ created_by / admin_id
    ├──────────────────┐
@@ -50,7 +51,7 @@ work_sessions ──────────┘
 |---|---|---|---|
 | id | uuid PK | default `gen_random_uuid()` | — |
 | name | text | NOT NULL, check `length(trim(name)) > 0` | Nama/item project |
-| process | `project_process` enum | NOT NULL | `Machining` \| `Assembly` \| `Trial` |
+| process | `project_process` enum | NOT NULL | `Machining` \| `Assembly` \| `Trial` \| `Design` |
 | qr_token | uuid | UNIQUE NOT NULL, default `gen_random_uuid()` | Token QR, bukan id. Diregenerate? TIDAK di v1 (statis). |
 | is_archived | boolean | NOT NULL DEFAULT false | Archive ganti delete |
 | created_by | uuid → auth.users | nullable (SET NULL on delete admin) | Admin pembuat |
@@ -123,7 +124,8 @@ View disediakan di migration (`v_project_status` + `v_project_totals`). Frontend
 
 ## 4. RPC `clock_toggle` (single writer, atomic)
 
-**Signature (v1.4):** `clock_toggle(p_qr_token uuid, p_operator_name text) RETURNS jsonb`
+**Signature (v1.7):** `clock_toggle(p_qr_token uuid, p_operator_name text, p_expected_action text default null) RETURNS jsonb`
+**Aturan v1.7:** bila `p_expected_action` diisi dan beda dengan state aktual → `STALE_STATE` (jangan dibalik diam-diam).
 **Security:** `SECURITY DEFINER`, `GRANT EXECUTE TO anon, authenticated`.
 **Frontend tidak boleh** insert/update `work_sessions` langsung (dicabut via RLS).
 
@@ -203,9 +205,9 @@ CREATE INDEX ON session_corrections (project_id, created_at DESC);
 
 ---
 
-## 8. Next step ke kode
+## 8. Next step ke kode (v1.5: era self-hosted)
 
-1. Jalankan `supabase/migrations/0001_init.sql` (file sebelah).
-2. Buat tabel `admins(user_id uuid pk)` + 1 baris admin pertama manual, ATAU set JWT claim — pilih satu.
-3. Next.js routes: `/login`, `/admin/*`, `/scan/[qr_token]` (mobile-first, tombol besar, confirm dialog, disable-after-OK, tampilkan Clock In terakhir sebagai fraud deterrent).
+1. `docker compose up -d postgres` (skema otomatis dari `db/init/001_schema.sql`).
+2. Buat admin: `node scripts/seed-admin.mjs <email> <password>`.
+3. Isi `.env` (lihat `.env.example`), `npm run dev`.
 4. Jangan hitung duration di client. Format WIB hanya untuk display: `Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', ... })`.

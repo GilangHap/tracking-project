@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.env*
+Dockerfile
+docker-compose.yml
+Caddyfile
+README.md
+docs
+supabase
+db

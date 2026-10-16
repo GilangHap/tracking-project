@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { escapeLike } from "@/lib/search";
 import { fmtDuration, fmtDateWIB, fmtTimeWIB } from "@/lib/format";
 
@@ -29,18 +30,13 @@ function stampWIB(d: Date): string {
 
 /** Export CSV seluruh record sesuai filter (admin only). */
 export async function GET(req: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-
-  const { data: admin } = await supabase
-    .from("admins")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (!admin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  const session = await auth();
+  const role = (session?.user as unknown as { role?: string } | undefined)
+    ?.role;
+  if (!session?.user)
+    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (role !== "admin")
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
   const sp = req.nextUrl.searchParams;
   const q = (sp.get("q") ?? "").trim();
@@ -48,27 +44,57 @@ export async function GET(req: NextRequest) {
   const from = sp.get("from") ?? "";
   const to = sp.get("to") ?? "";
 
-  let query = supabase
-    .from("work_sessions")
-    .select("clock_in, clock_out, clock_in_by, clock_out_by, projects!inner(name, process)")
-    .eq("projects.is_archived", false)
-    .order("clock_in", { ascending: false })
-    .limit(MAX_EXPORT);
-  if (q) query = query.ilike("projects.name", `%${escapeLike(q)}%`);
-  if (process) query = query.eq("projects.process", process);
-  if (from) query = query.gte("clock_in", `${from}T00:00:00+07:00`);
-  if (to) query = query.lte("clock_in", `${to}T23:59:59.999+07:00`);
+  const conds = ["p.is_archived = false"];
+  const params: unknown[] = [];
+  if (q) {
+    params.push(`%${escapeLike(q)}%`);
+    conds.push(`p.name ilike $${params.length}`);
+  }
+  if (process) {
+    params.push(process);
+    conds.push(`p.process = $${params.length}::project_process`);
+  }
+  if (from) {
+    params.push(`${from}T00:00:00+07:00`);
+    conds.push(`s.clock_in >= $${params.length}::timestamptz`);
+  }
+  if (to) {
+    params.push(`${to}T23:59:59.999+07:00`);
+    conds.push(`s.clock_in <= $${params.length}::timestamptz`);
+  }
+  params.push(MAX_EXPORT);
 
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const rows = (data ?? []) as unknown as {
+  let rows: {
     clock_in: string;
     clock_out: string | null;
     clock_in_by: string | null;
     clock_out_by: string | null;
-    projects: { name: string; process: string };
+    project_name: string;
+    project_process: string;
   }[];
+  try {
+    const res = await db.query<{
+      clock_in: string;
+      clock_out: string | null;
+      clock_in_by: string | null;
+      clock_out_by: string | null;
+      project_name: string;
+      project_process: string;
+    }>(
+      `select s.clock_in, s.clock_out, s.clock_in_by, s.clock_out_by,
+              p.name as project_name, p.process as project_process
+       from public.work_sessions s
+       join public.projects p on p.id = s.project_id
+       where ${conds.join(" and ")}
+       order by s.clock_in desc
+       limit $${params.length}`,
+      params,
+    );
+    rows = res.rows;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "UNKNOWN";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
   const lines = [
     [
@@ -98,8 +124,8 @@ export async function GET(req: NextRequest) {
     lines.push(
       [
         fmtDateWIB(r.clock_in),
-        r.projects.name,
-        r.projects.process,
+        r.project_name,
+        r.project_process,
         fmtTimeWIB(r.clock_in),
         r.clock_in_by ?? "",
         r.clock_out ? fmtTimeWIB(r.clock_out) : "",

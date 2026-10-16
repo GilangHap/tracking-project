@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
 import { escapeLike } from "@/lib/search";
 import { fmtDuration, fmtDateWIB, fmtTimeWIB } from "@/lib/format";
 import { EmptyRow, SectionBar } from "@/components/ui";
@@ -9,7 +9,7 @@ import { EmptyRow, SectionBar } from "@/components/ui";
 export const instant = false;
 
 const PER_PAGE = 20;
-const PROCESSES = ["Machining", "Assembly", "Trial"] as const;
+const PROCESSES = ["Machining", "Assembly", "Trial", "Design"] as const;
 
 interface RecordRow {
   id: string;
@@ -73,26 +73,58 @@ export default async function RecordsPage({
   };
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
-  const supabase = await createClient();
-  let query = supabase
-    .from("work_sessions")
-    .select(
-      "id, clock_in, clock_out, clock_in_by, clock_out_by, projects!inner(id, name, process)",
-      {
-        count: "exact",
-      },
-    )
-    .eq("projects.is_archived", false)
-    .order("clock_in", { ascending: false });
-  if (f.q) query = query.ilike("projects.name", `%${escapeLike(f.q)}%`);
-  if (f.process) query = query.eq("projects.process", f.process);
-  if (f.from) query = query.gte("clock_in", `${f.from}T00:00:00+07:00`);
-  if (f.to) query = query.lte("clock_in", `${f.to}T23:59:59.999+07:00`);
+  const conds = ["p.is_archived = false"];
+  const params: unknown[] = [];
+  if (f.q) {
+    params.push(`%${escapeLike(f.q)}%`);
+    conds.push(`p.name ilike $${params.length}`);
+  }
+  if (f.process) {
+    params.push(f.process);
+    conds.push(`p.process = $${params.length}::project_process`);
+  }
+  if (f.from) {
+    params.push(`${f.from}T00:00:00+07:00`);
+    conds.push(`s.clock_in >= $${params.length}::timestamptz`);
+  }
+  if (f.to) {
+    params.push(`${f.to}T23:59:59.999+07:00`);
+    conds.push(`s.clock_in <= $${params.length}::timestamptz`);
+  }
+  const where = `where ${conds.join(" and ")}`;
+  const offset = (page - 1) * PER_PAGE;
 
-  const from = (page - 1) * PER_PAGE;
-  const { data, count } = await query.range(from, from + PER_PAGE - 1);
-  const records = (data ?? []) as unknown as RecordRow[];
-  const total = count ?? 0;
+  const { rows } = await db.query<
+    RecordRow & {
+      project_id: string;
+      project_name: string;
+      project_process: string;
+      full_count: string;
+    }
+  >(
+    `select s.id, s.clock_in, s.clock_out, s.clock_in_by, s.clock_out_by,
+            p.id as project_id, p.name as project_name, p.process as project_process,
+            count(*) over() as full_count
+     from public.work_sessions s
+     join public.projects p on p.id = s.project_id
+     ${where}
+     order by s.clock_in desc
+     limit ${PER_PAGE} offset ${offset}`,
+    params,
+  );
+  const records: RecordRow[] = rows.map((r) => ({
+    id: r.id,
+    clock_in: r.clock_in,
+    clock_out: r.clock_out,
+    clock_in_by: r.clock_in_by,
+    clock_out_by: r.clock_out_by,
+    projects: {
+      id: r.project_id,
+      name: r.project_name,
+      process: r.project_process,
+    },
+  }));
+  const total = rows.length > 0 ? Number(rows[0].full_count) : 0;
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   // Halaman di luar jangkauan (mis. data terhapus) → lempar ke halaman akhir.
   if (page > totalPages) redirect(pageHref(f, totalPages));

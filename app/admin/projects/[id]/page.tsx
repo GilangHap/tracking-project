@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import QRCode from "qrcode";
-import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
 import {
   fmtDateWIB,
   fmtTimeWIB,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { Pager } from "@/components/pager";
 import { SubmitButton } from "@/components/submit-button";
+import { DeleteProjectButton } from "@/components/delete-project-button";
 import {
   updateProject,
   setArchived,
@@ -72,38 +73,50 @@ export default async function ProjectDetailPage({
   const PER_SESSION = 15;
   const PER_AUDIT = 10;
 
-  // Wajib request-time: Supabase JS memanggil Date.now() yang dilarang prerender.
+  // Wajib request-time: halaman memakai data sesi + DB per request.
   await connection();
-  const supabase = await createClient();
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, name, process, qr_token, is_archived")
-    .eq("id", id)
-    .maybeSingle();
+  const projectRes = await db.query<Project>(
+    "select id, name, process, qr_token, is_archived, created_at, updated_at from public.projects where id = $1",
+    [id],
+  );
+  const project = projectRes.rows[0] ?? null;
   if (!project) notFound();
-  const p = project as Project;
+  const p = project;
 
-  const { data: sessions, count: sessionTotal } = await supabase
-    .from("work_sessions")
-    .select(
-      "id, project_id, clock_in, clock_out, duration, clock_in_by, clock_out_by",
-      {
-        count: "exact",
-      },
-    )
-    .eq("project_id", id)
-    .order("clock_in", { ascending: false })
-    .range((spage - 1) * PER_SESSION, spage * PER_SESSION - 1);
+  const sessionsRes = await db.query<WorkSession>(
+    `select id, project_id, clock_in, clock_out, clock_in_by, clock_out_by
+     from public.work_sessions where project_id = $1
+     order by clock_in desc limit $2 offset $3`,
+    [id, PER_SESSION, (spage - 1) * PER_SESSION],
+  );
+  const sessions = sessionsRes.rows;
+  const countRes = await db.query<{ n: string }>(
+    "select count(*)::text as n from public.work_sessions where project_id = $1",
+    [id],
+  );
+  const sessionTotal = Number(countRes.rows[0]?.n ?? 0);
 
-  const { data: corrections, count: auditTotal } = await supabase
-    .from("session_corrections")
-    .select(
-      "id, action, old_clock_in, new_clock_in, old_clock_out, new_clock_out, reason, created_at",
-      { count: "exact" },
-    )
-    .eq("project_id", id)
-    .order("created_at", { ascending: false })
-    .range((apage - 1) * PER_AUDIT, apage * PER_AUDIT - 1);
+  const correctionsRes = await db.query<{
+    id: string;
+    action: string;
+    old_clock_in: string | null;
+    new_clock_in: string | null;
+    old_clock_out: string | null;
+    new_clock_out: string | null;
+    reason: string | null;
+    created_at: string;
+  }>(
+    `select id, action, old_clock_in, new_clock_in, old_clock_out, new_clock_out, reason, created_at
+     from public.session_corrections where project_id = $1
+     order by created_at desc limit $2 offset $3`,
+    [id, PER_AUDIT, (apage - 1) * PER_AUDIT],
+  );
+  const corrections = correctionsRes.rows;
+  const auditCountRes = await db.query<{ n: string }>(
+    "select count(*)::text as n from public.session_corrections where project_id = $1",
+    [id],
+  );
+  const auditTotal = Number(auditCountRes.rows[0]?.n ?? 0);
 
   const sessionPages = Math.max(1, Math.ceil((sessionTotal ?? 0) / PER_SESSION));
   const auditPages = Math.max(1, Math.ceil((auditTotal ?? 0) / PER_AUDIT));
@@ -118,36 +131,27 @@ export default async function ProjectDetailPage({
   }
 
   // Agregat global (tidak ikut pagination) untuk kartu + status.
-  const { data: statusRow } = await supabase
-    .from("v_project_status")
-    .select("status, session_count")
-    .eq("project_id", id)
-    .maybeSingle();
-  const { data: totalRow } = await supabase
-    .from("v_project_totals")
-    .select("total_secs")
-    .eq("project_id", id)
-    .maybeSingle();
-  const { data: activeRow } = await supabase
-    .from("work_sessions")
-    .select("clock_in")
-    .eq("project_id", id)
-    .is("clock_out", null)
-    .maybeSingle();
-
-  const list = (sessions ?? []) as WorkSession[];
-  const sessionCount =
-    (statusRow as { session_count?: number } | null)?.session_count ??
-    (sessionTotal ?? 0);
-  const totalSecs = Number(
-    (totalRow as { total_secs?: number } | null)?.total_secs ?? 0,
+  const statusRes = await db.query<{ status: string; session_count: number }>(
+    "select status, session_count from public.v_project_status where project_id = $1",
+    [id],
   );
-  const activeClockIn = (
-    activeRow as { clock_in?: string } | null
-  )?.clock_in;
-  const status = p.is_archived
-    ? "Archived"
-    : ((statusRow as { status?: string } | null)?.status ?? "Not Started");
+  const statusRow = statusRes.rows[0] ?? null;
+  const totalRes = await db.query<{ total_secs: string }>(
+    "select total_secs from public.v_project_totals where project_id = $1",
+    [id],
+  );
+  const totalRow = totalRes.rows[0] ?? null;
+  const activeRes = await db.query<{ clock_in: string }>(
+    "select clock_in from public.work_sessions where project_id = $1 and clock_out is null limit 1",
+    [id],
+  );
+  const activeRow = activeRes.rows[0] ?? null;
+
+  const list = sessions;
+  const sessionCount = statusRow?.session_count ?? sessionTotal;
+  const totalSecs = Number(totalRow?.total_secs ?? 0);
+  const activeClockIn = activeRow?.clock_in;
+  const status = p.is_archived ? "Archived" : (statusRow?.status ?? "Not Started");
 
   const siteUrl = (
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
@@ -256,11 +260,22 @@ export default async function ProjectDetailPage({
                 ✕ Archived: QR mati, scan ditolak.
               </p>
             )}
+            <div className="mt-3 border-t-2 border-dashed border-ink/30 pt-3">
+              <DeleteProjectButton
+                projectId={p.id}
+                projectName={p.name}
+                sessionCount={sessionCount}
+              />
+            </div>
           </div>
         </Window>
 
         <Window title="Edit_Project.Exe" bar="bg-lavender">
-          <form action={updateProject} className="space-y-4">
+          <form
+            action={updateProject}
+            key={`edit-${p.id}-${p.updated_at}`}
+            className="space-y-4"
+          >
             <input type="hidden" name="id" value={p.id} />
             <Field label="Nama">
               <input
@@ -282,6 +297,7 @@ export default async function ProjectDetailPage({
                 <option value="Machining">Machining</option>
                 <option value="Assembly">Assembly</option>
                 <option value="Trial">Trial</option>
+                <option value="Design">Design</option>
               </select>
             </Field>
             <SubmitButton
@@ -376,7 +392,11 @@ export default async function ProjectDetailPage({
                         <summary className="mark-link inline cursor-pointer rounded font-mono text-sm font-bold tracking-wider uppercase">
                           Edit
                         </summary>
-                        <CorrectionForm s={s} projectId={p.id} />
+                        <CorrectionForm
+                          key={`corr-${s.id}-${s.clock_in}-${s.clock_out ?? "aktif"}-${s.clock_in_by ?? ""}-${s.clock_out_by ?? ""}`}
+                          s={s}
+                          projectId={p.id}
+                        />
                         <form action={removeSession} className="mt-2">
                           <input type="hidden" name="session_id" value={s.id} />
                           <input type="hidden" name="project_id" value={p.id} />
