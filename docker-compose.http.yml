@@ -1,0 +1,8 @@
+# INTERIM — dipakai selama port 80/443 masih milik nginx lain.
+# Cara pakai: docker compose -f docker-compose.yml -f docker-compose.http.yml up -d --build postgres app backup
+# (caddy sengaja tidak dinyalakan). Setelah 443 bebas / domain+TLS siap,
+# stop composed ini dan pakai docker-compose.yml penuh (dengan caddy).
+services:
+  app:
+    ports:
+      - "8082:3000"
