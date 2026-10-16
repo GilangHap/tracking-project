@@ -1,8 +1,0 @@
-# INTERIM TLS — pasangan docker-compose.edge.yml.
-# Caddy menerbitkan sertifikat internal sendiri (tanpa port 80/443).
-# Cloudflare mode Full (non-strict) menerima cert ini; browser hanya
-# melihat cert valid milik Cloudflare.
-tracking.langhap.dev:8880 {
-	tls internal
-	reverse_proxy app:3000
-}
