@@ -59,6 +59,16 @@ services:
     # Dump harian 02:00 + retensi 7 hari (lihat scripts/backup.sh)
     command: sh -c "echo '0 2 * * * /scripts/backup.sh' | crontab - && crond -f -d 8"
 
+  # Tunnel Cloudflare (HTTPS tanpa butuh port 80/443).
+  # Butuh TUNNEL_TOKEN di .env + Public Hostname tracking.langhap.dev
+  # → http://app:3000 di dashboard Zero Trust.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:?isi TUNNEL_TOKEN di .env}
+    depends_on:
+      - app
+
 volumes:
   pgdata:
   pgbackups:
