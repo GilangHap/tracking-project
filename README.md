@@ -48,9 +48,17 @@ docker compose up -d --build
 node -e "console.log(require('bcryptjs').hashSync('PasswordKuat123',12))"
 docker compose exec postgres psql -U tracker -d tracker -c \
   "insert into public.users(email,password_hash,role) values('admin@contoh.id','<HASH>','admin');"
-# 4. Cek: https://tracking.langhap.dev (Caddy menerbitkan TLS otomatis)
+# 4. Cek: https://tracking.langhap.dev:8443 (sertifikat Let's Encrypt via
+#    DNS-01, serve Caddy di 8443 karena 443 milik nginx lain)
 #    Backup harian otomatis 02:00 ke volume pgbackups (retensi 7 hari).
 #    Lihat: docker compose exec backup ls -la /backups
+#
+# Renewal sertifikat (tiap ~60 hari, sebelum 90 hari habis):
+#   docker run --rm -e NAMECOM_USERNAME=... -e NAMECOM_API_TOKEN=... \
+#     -v le_certs:/certs goacme/lego:latest run \
+#     --email admin@gmail.com --path /certs --accept-tos \
+#     --dns namedotcom --domains tracking.langhap.dev
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml -f docker-compose.http.yml restart caddy-tls
 #
 # PERINGATAN: jangan ganti POSTGRES_PASSWORD di .env setelah database terisi —
 # password hanya dipakai saat init volume kosong. Ganti password = lewat
