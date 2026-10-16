@@ -51,6 +51,11 @@ docker compose exec postgres psql -U tracker -d tracker -c \
 # 4. Cek: https://tracking.langhap.dev (Caddy menerbitkan TLS otomatis)
 #    Backup harian otomatis 02:00 ke volume pgbackups (retensi 7 hari).
 #    Lihat: docker compose exec backup ls -la /backups
+#
+# PERINGATAN: jangan ganti POSTGRES_PASSWORD di .env setelah database terisi —
+# password hanya dipakai saat init volume kosong. Ganti password = lewat
+# `ALTER USER tracker PASSWORD '...'` di psql, atau reset total
+# (`down` + hapus volume pgdata + up ulang + seed admin lagi).
 ```
 
 ## Perintah
