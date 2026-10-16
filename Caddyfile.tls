@@ -1,0 +1,7 @@
+# TLS valid Let's Encrypt (via DNS-01, tanpa butuh port 80/443).
+# Pasangan docker-compose.tls.yml. Renewal: ulangi perintah lego run
+# (otomatis renew bila <30 hari) lalu restart caddy-tls.
+tracking.langhap.dev:8443 {
+	tls /certs/certificates/tracking.langhap.dev.crt /certs/certificates/tracking.langhap.dev.key
+	reverse_proxy app:3000
+}
