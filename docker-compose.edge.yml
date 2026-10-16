@@ -1,0 +1,18 @@
+# INTERIM TLS — dipakai selama port 80/443 milik nginx lain.
+# Cara pakai:
+#   docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d --build
+# Alur: browser --HTTPS--> Cloudflare (orange cloud) --HTTPS(8880, cert internal)--> caddy --HTTP--> app
+# Syarat: record A proxied ON, SSL mode Full/Flexible (bukan Strict),
+#         firewall VPS membuka TCP 8880.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "8880:8880"
+    volumes:
+      - ./Caddyfile.edge:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
